@@ -392,6 +392,19 @@ textarea {
   white-space: nowrap;
 }
 
+@media (max-width: 640px) {
+  .inline-form {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .inline-form input,
+  .inline-form button {
+    width: 100%;
+  }
+}
+
 .error-text {
   color: #dc2626;
 }
