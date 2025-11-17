@@ -830,10 +830,11 @@ select:focus {
   inset: 0;
   background: rgba(15, 23, 42, 0.75);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 4rem 1.5rem 1.5rem;
   z-index: 50;
+  overflow-y: auto;
 }
 
 .modal-card {
