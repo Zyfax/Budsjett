@@ -78,6 +78,24 @@ const FixedExpensesPage = () => {
     return LEVEL_OPTIONS.map((level) => ({ level, total: map.get(level) || 0 }));
   }, [expenses]);
 
+  const groupedExpenses = useMemo(() => {
+    if (!expenses.length) return [];
+    const map = new Map();
+    expenses.forEach((expense) => {
+      const key = expense.category || 'Annet';
+      const existing = map.get(key) || [];
+      existing.push(expense);
+      map.set(key, existing);
+    });
+    return Array.from(map.entries())
+      .map(([category, items]) => ({
+        category,
+        items: items.sort((a, b) => (b.amountPerMonth || 0) - (a.amountPerMonth || 0)),
+        total: items.reduce((sum, item) => sum + (Number(item.amountPerMonth) || 0), 0)
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [expenses]);
+
   const bindingSoon = useMemo(() => {
     const now = Date.now();
     const ninetyDays = 90 * 24 * 60 * 60 * 1000;
@@ -272,55 +290,57 @@ const FixedExpensesPage = () => {
 
       <div className="section-header">
         <h2>Alle faste utgifter</h2>
-        <span>{expenses.length} rader</span>
+        <span>{expenses.length} avtaler</span>
       </div>
-      <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Navn</th>
-              <th>Beløp/mnd</th>
-              <th>Kategori</th>
-              <th>Eier</th>
-              <th>Nivå</th>
-              <th>Binding utløper</th>
-              <th>Oppsigelsestid</th>
-              <th>Notat</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.map((expense) => (
-              <tr key={expense.id}>
-                <td>
-                  <div className="table-inline">
-                    <strong>{expense.name}</strong>
-                    {expense.startDate && (
-                      <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
-                    )}
-                  </div>
-                </td>
-                <td>{formatCurrency(expense.amountPerMonth)}</td>
-                <td>{expense.category}</td>
-                <td>
-                  {(expense.owners || []).length === 0 ? (
-                    <span className="muted">-</span>
-                  ) : (
-                    <div className="chip-list">
-                      {(expense.owners || []).map((owner) => (
-                        <span className="chip" key={owner}>
-                          {owner}
-                        </span>
-                      ))}
+      <div className="category-sections">
+        {groupedExpenses.length === 0 && <p className="muted">Ingen registrerte utgifter ennå.</p>}
+        {groupedExpenses.map((group) => (
+          <section className="category-section" key={group.category}>
+            <div className="category-section-header">
+              <div>
+                <h3>{group.category}</h3>
+                <p className="muted">{group.items.length} avtaler</p>
+              </div>
+              <div className="category-total">
+                <span className="muted">Sum</span>
+                <strong>{formatCurrency(group.total)}</strong>
+              </div>
+            </div>
+            <div className="category-expense-list">
+              {group.items.map((expense) => (
+                <article className="expense-entry" key={expense.id}>
+                  <div className="expense-entry-main">
+                    <div>
+                      <p className="expense-name">{expense.name}</p>
+                      {expense.startDate && (
+                        <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
+                      )}
+                      <div className="expense-meta">
+                        <span className="badge">{expense.level}</span>
+                        <span className="muted">Binding: {formatDate(expense.bindingEndDate)}</span>
+                        <span className="muted">Oppsigelse: {formatNotice(expense.noticePeriodMonths)}</span>
+                      </div>
+                      <div className="expense-owners">
+                        {(expense.owners || []).length === 0 ? (
+                          <span className="muted">Ingen eiere</span>
+                        ) : (
+                          <div className="chip-list">
+                            {(expense.owners || []).map((owner) => (
+                              <span className="chip" key={owner}>
+                                {owner}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {expense.note && <p className="expense-note">{expense.note}</p>}
                     </div>
-                  )}
-                </td>
-                <td>{expense.level}</td>
-                <td>{formatDate(expense.bindingEndDate)}</td>
-                <td>{formatNotice(expense.noticePeriodMonths)}</td>
-                <td>{expense.note || '-'}</td>
-                <td className="table-actions-cell">
-                  <div className="table-actions">
+                    <div className="expense-amount">
+                      <span className="muted">Per måned</span>
+                      <strong>{formatCurrency(expense.amountPerMonth)}</strong>
+                    </div>
+                  </div>
+                  <div className="expense-actions">
                     <button className="secondary" onClick={() => setSimulatedExpense(expense)}>
                       Simuler oppsigelse
                     </button>
@@ -329,11 +349,11 @@ const FixedExpensesPage = () => {
                     </button>
                     <button onClick={() => handleDelete(expense.id)}>Slett</button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
 
       {showForm && (
