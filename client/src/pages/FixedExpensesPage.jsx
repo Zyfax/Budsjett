@@ -47,6 +47,8 @@ const FixedExpensesPage = () => {
   const [bulkOwnersError, setBulkOwnersError] = useState('');
   const [bulkOwnersSuccess, setBulkOwnersSuccess] = useState('');
   const [isBulkUpdatingOwners, setIsBulkUpdatingOwners] = useState(false);
+  const [monthlyNetIncome, setMonthlyNetIncome] = useState(null);
+  const [settingsError, setSettingsError] = useState('');
   const availableCategories = useMemo(() => {
     if (!form.category || categoryOptions.includes(form.category)) {
       return categoryOptions;
@@ -65,6 +67,26 @@ const FixedExpensesPage = () => {
 
   useEffect(() => {
     fetchExpenses();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSettings = async () => {
+      try {
+        const settings = await api.getSettings();
+        if (!isMounted) return;
+        setMonthlyNetIncome(Number(settings.monthlyNetIncome) || 0);
+        setSettingsError('');
+      } catch (err) {
+        if (!isMounted) return;
+        console.error('Kunne ikke hente innstillinger', err);
+        setSettingsError('Kunne ikke hente netto inntekt.');
+      }
+    };
+    loadSettings();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const loadCategories = useCallback(async () => {
@@ -278,6 +300,8 @@ const FixedExpensesPage = () => {
   }, [simulatedExpense, totalPerMonth]);
 
   const luxuryTotal = levelTotals.find((item) => item.level === 'Luksus')?.total || 0;
+  const freeAfterFixed = (monthlyNetIncome ?? 0) - totalPerMonth;
+  const netIncomeLoaded = monthlyNetIncome !== null;
 
   return (
     <div>
@@ -309,6 +333,22 @@ const FixedExpensesPage = () => {
             {filteredExpenses.length} aktive avtaler
             {selectedOwner && ` (av ${expenses.length})`}
           </p>
+        </div>
+        <div className="card">
+          <h3>Ledig etter faste kostnader</h3>
+          {netIncomeLoaded ? (
+            <>
+              <p className="stat" style={{ color: freeAfterFixed >= 0 ? '#16a34a' : '#dc2626' }}>
+                {formatCurrency(freeAfterFixed)}
+              </p>
+              <p className="muted">
+                Basert på netto inntekt og {selectedOwner ? `utgiftene til ${selectedOwner}` : 'alle faste utgifter'}.
+              </p>
+            </>
+          ) : (
+            <p className="muted">Henter netto inntekt…</p>
+          )}
+          {settingsError && <p className="error-text">{settingsError}</p>}
         </div>
         <div className="card">
           <h3>Sum per kategori</h3>
