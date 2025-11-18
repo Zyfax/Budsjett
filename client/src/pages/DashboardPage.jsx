@@ -41,17 +41,9 @@ const DashboardPage = () => {
     };
   }, []);
 
-  if (error) {
-    return <p>Kunne ikke laste data: {error}</p>;
-  }
-
-  if (!summary) {
-    return <p>Laster...</p>;
-  }
-
-  const fixedCategories = summary.fixedExpenseCategoryTotals || [];
-  const fixedLevels = summary.fixedExpenseLevelTotals || [];
-  const bindingSoon = summary.bindingExpirations || [];
+  const fixedCategories = summary?.fixedExpenseCategoryTotals || [];
+  const fixedLevels = summary?.fixedExpenseLevelTotals || [];
+  const bindingSoon = summary?.bindingExpirations || [];
 
   useEffect(() => {
     setHiddenCategories((current) =>
@@ -65,12 +57,12 @@ const DashboardPage = () => {
   );
 
   const baselineFixedCosts =
-    summary.effectiveFixedExpenseTotal ?? summary.fixedExpenseTotal ?? summary.fixedExpensesTotal ?? 0;
-  const baselineFreeAfterFixed = summary.freeAfterFixed ?? 0;
+    summary?.effectiveFixedExpenseTotal ?? summary?.fixedExpenseTotal ?? summary?.fixedExpensesTotal ?? 0;
+  const baselineFreeAfterFixed = summary?.freeAfterFixed ?? 0;
   const netIncomeCandidate =
-    typeof summary.activeMonthlyNetIncome === 'number'
+    typeof summary?.activeMonthlyNetIncome === 'number'
       ? summary.activeMonthlyNetIncome
-      : typeof summary.monthlyNetIncome === 'number'
+      : typeof summary?.monthlyNetIncome === 'number'
       ? summary.monthlyNetIncome
       : baselineFixedCosts + baselineFreeAfterFixed;
   const hasNetIncome = Number.isFinite(netIncomeCandidate);
@@ -156,16 +148,25 @@ const DashboardPage = () => {
         }
       : null;
 
+  const tagTotals = summary?.tagTotals || {};
   const tagBarData = {
-    labels: Object.keys(summary.tagTotals),
+    labels: Object.keys(tagTotals),
     datasets: [
       {
         label: 'Netto',
-        data: Object.values(summary.tagTotals),
+        data: Object.values(tagTotals),
         backgroundColor: '#4f46e5'
       }
     ]
   };
+
+  if (error) {
+    return <p>Kunne ikke laste data: {error}</p>;
+  }
+
+  if (!summary) {
+    return <p>Laster...</p>;
+  }
 
   return (
     <div className="dashboard-page">
