@@ -12,6 +12,10 @@ const SettingsPage = () => {
   const [ownerError, setOwnerError] = useState('');
   const [newOwnerName, setNewOwnerName] = useState('');
   const [isSavingOwners, setIsSavingOwners] = useState(false);
+  const [defaultOwner, setDefaultOwner] = useState('');
+  const [defaultOwnerStatus, setDefaultOwnerStatus] = useState('');
+  const [defaultOwnerError, setDefaultOwnerError] = useState('');
+  const [isUpdatingDefaultOwner, setIsUpdatingDefaultOwner] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -26,6 +30,7 @@ const SettingsPage = () => {
           }
         });
         setOwnerInputs(normalized);
+        setDefaultOwner(typeof data.defaultFixedExpensesOwner === 'string' ? data.defaultFixedExpensesOwner : '');
       } catch (err) {
         if (!isMounted) return;
         setOwnerError('Kunne ikke hente personer: ' + err.message);
@@ -75,8 +80,11 @@ const SettingsPage = () => {
     Object.keys(ownerInputs).forEach((name) => {
       if (name?.trim()) names.add(name);
     });
+    if (defaultOwner?.trim()) {
+      names.add(defaultOwner.trim());
+    }
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'no'));
-  }, [ownersFromExpenses, ownerInputs]);
+  }, [ownersFromExpenses, ownerInputs, defaultOwner]);
 
   const handleOwnerIncomeChange = (name, value) => {
     setOwnerInputs((current) => ({ ...current, [name]: value }));
@@ -129,6 +137,22 @@ const SettingsPage = () => {
       setOwnerError(err.message || 'Kunne ikke lagre inntekter.');
     } finally {
       setIsSavingOwners(false);
+    }
+  };
+
+  const handleSetDefaultOwner = async (name) => {
+    setDefaultOwnerStatus('');
+    setDefaultOwnerError('');
+    setIsUpdatingDefaultOwner(true);
+    try {
+      const payload = { defaultFixedExpensesOwner: name || '' };
+      const updated = await api.updateSettings(payload);
+      setDefaultOwner(typeof updated.defaultFixedExpensesOwner === 'string' ? updated.defaultFixedExpensesOwner : '');
+      setDefaultOwnerStatus(name ? `${name} er satt som standard for Faste utgifter.` : 'Standardvisning fjernet.');
+    } catch (err) {
+      setDefaultOwnerError(err.message || 'Kunne ikke oppdatere standardvisningen.');
+    } finally {
+      setIsUpdatingDefaultOwner(false);
     }
   };
 
@@ -208,6 +232,47 @@ const SettingsPage = () => {
                   />
                 </div>
               ))}
+            </div>
+          )}
+          {ownerNames.length > 0 && (
+            <div className="default-owner-selector">
+              <p style={{ marginTop: '1rem' }}>Velg hvilken tag/navn som skal være standard for Faste utgifter.</p>
+              <div className="owner-default-list">
+                {ownerNames.map((name) => (
+                  <div key={`${name}-default`} className="owner-default-row">
+                    <span>{name}</span>
+                    {defaultOwner === name ? (
+                      <span className="badge">Markert som standard</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => handleSetDefaultOwner(name)}
+                        disabled={isUpdatingDefaultOwner}
+                      >
+                        Marker som standard
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {defaultOwner && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => handleSetDefaultOwner('')}
+                  disabled={isUpdatingDefaultOwner}
+                  style={{ marginTop: '0.75rem' }}
+                >
+                  Fjern standardvalg
+                </button>
+              )}
+              {defaultOwnerStatus && (
+                <p className="muted" style={{ marginTop: '0.5rem', color: '#16a34a' }}>
+                  {defaultOwnerStatus}
+                </p>
+              )}
+              {defaultOwnerError && <p className="error-text">{defaultOwnerError}</p>}
             </div>
           )}
           <form className="inline-form" onSubmit={handleAddOwner} style={{ marginTop: '1rem' }}>
