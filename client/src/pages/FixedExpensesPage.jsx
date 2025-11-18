@@ -98,6 +98,7 @@ const FixedExpensesPage = () => {
   const [settingsError, setSettingsError] = useState('');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [defaultOwners, setDefaultOwners] = useState([]);
+  const doughnutRef = useRef(null);
   const ownerOptions = useMemo(() => {
     const set = new Set();
     expenses.forEach((expense) => {
@@ -223,6 +224,24 @@ const FixedExpensesPage = () => {
   }, [filteredExpenses, categoryColorMap]);
 
   const hiddenCategorySet = useMemo(() => new Set(hiddenCategories), [hiddenCategories]);
+
+  useEffect(() => {
+    const chart = doughnutRef.current;
+    if (!chart) return;
+    const labels = chart.data?.labels || [];
+    let needsUpdate = false;
+    labels.forEach((label, index) => {
+      const shouldHide = hiddenCategorySet.has(label);
+      const isVisible = chart.getDataVisibility(index);
+      if (shouldHide === isVisible) {
+        chart.toggleDataVisibility(index);
+        needsUpdate = true;
+      }
+    });
+    if (needsUpdate) {
+      chart.update();
+    }
+  }, [hiddenCategorySet, categoryTotals]);
 
   const visibleCategoryTotals = useMemo(
     () => categoryTotals.filter((item) => !hiddenCategorySet.has(item.category)),
@@ -409,6 +428,7 @@ const FixedExpensesPage = () => {
   const clearOwnerFilter = useCallback(() => {
     setSelectedOwners([]);
     setHasManualOwnerSelection(false);
+    setHiddenCategories([]);
   }, []);
 
   const handleSubmit = async (event) => {
@@ -627,6 +647,7 @@ const FixedExpensesPage = () => {
         {doughnutData ? (
           <div className="chart-wrapper">
             <Doughnut
+              ref={doughnutRef}
               data={doughnutData}
               options={doughnutOptions}
             />
