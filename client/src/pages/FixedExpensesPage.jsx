@@ -97,6 +97,18 @@ const FixedExpensesPage = () => {
   const [settingsError, setSettingsError] = useState('');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [defaultOwners, setDefaultOwners] = useState([]);
+  const ownerOptions = useMemo(() => {
+    const set = new Set();
+    expenses.forEach((expense) => {
+      (expense.owners || []).forEach((owner) => {
+        const trimmed = owner?.trim();
+        if (trimmed) {
+          set.add(trimmed);
+        }
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'no'));
+  }, [expenses]);
   const availableCategories = useMemo(() => {
     if (!form.category || categoryOptions.includes(form.category)) {
       return categoryOptions;
@@ -453,9 +465,34 @@ const FixedExpensesPage = () => {
               Fjern filter
             </button>
           )}
-            <button onClick={() => handleOpenForm(null)}>Ny fast utgift</button>
+          <button onClick={() => handleOpenForm(null)}>Ny fast utgift</button>
+        </div>
+      </div>
+      {ownerOptions.length > 0 && (
+        <div className="owner-filter-panel">
+          <div className="owner-filter-panel-header">
+            <p className="muted">
+              Trykk på et navn for å velge hvilke personer du vil se utgiftene til. Standardvalget fra
+              Innstillinger er markert automatisk.
+            </p>
+            {!hasManualOwnerSelection && defaultOwners.length > 0 && (
+              <span className="badge">Standardvisning</span>
+            )}
+          </div>
+          <div className="chip-list">
+            {ownerOptions.map((owner) => (
+              <button
+                type="button"
+                key={owner}
+                className={`chip chip-button${activeOwners.includes(owner) ? ' chip-active' : ''}`}
+                onClick={() => handleToggleOwnerFilter(owner)}
+              >
+                {owner}
+              </button>
+            ))}
           </div>
         </div>
+      )}
         {error && <p className="error-text">{error}</p>}
 
       <div className="card-grid">
