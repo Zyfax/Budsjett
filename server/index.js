@@ -279,7 +279,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.put('/api/settings', (req, res) => {
-  const { monthlyNetIncome, ownerProfiles } = req.body || {};
+  const { monthlyNetIncome, ownerProfiles, defaultFixedExpensesOwner } = req.body || {};
   const update = {};
 
   if (monthlyNetIncome !== undefined) {
@@ -308,6 +308,18 @@ app.put('/api/settings', (req, res) => {
       sanitizedProfiles.push({ name, monthlyNetIncome: income });
     }
     update.ownerProfiles = sanitizedProfiles;
+  }
+
+  if (defaultFixedExpensesOwner !== undefined) {
+    if (defaultFixedExpensesOwner === null || defaultFixedExpensesOwner === '') {
+      update.defaultFixedExpensesOwner = '';
+    } else if (typeof defaultFixedExpensesOwner === 'string') {
+      update.defaultFixedExpensesOwner = defaultFixedExpensesOwner.trim();
+    } else {
+      return res
+        .status(400)
+        .json({ error: 'Standardvisning må være et navn eller tom verdi.' });
+    }
   }
 
   const updated = db.updateSettings(update);

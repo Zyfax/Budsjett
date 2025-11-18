@@ -9,7 +9,8 @@ const dataPath = path.join(dataDir, 'store.json');
 
 const DEFAULT_SETTINGS = {
   monthlyNetIncome: 0,
-  ownerProfiles: []
+  ownerProfiles: [],
+  defaultFixedExpensesOwner: ''
 };
 
 const defaultData = {
@@ -63,6 +64,9 @@ class Store {
     } else {
       this.state.settings.monthlyNetIncome = Number(this.state.settings.monthlyNetIncome) || 0;
       this.state.settings.ownerProfiles = this.normalizeOwnerProfiles(this.state.settings.ownerProfiles || []);
+      if (typeof this.state.settings.defaultFixedExpensesOwner !== 'string') {
+        this.state.settings.defaultFixedExpensesOwner = '';
+      }
     }
 
     if (!Array.isArray(this.state.fixedExpenses)) {
@@ -404,6 +408,9 @@ class Store {
     if (!Array.isArray(this.state.settings.ownerProfiles)) {
       this.state.settings.ownerProfiles = [];
     }
+    if (typeof this.state.settings.defaultFixedExpensesOwner !== 'string') {
+      this.state.settings.defaultFixedExpensesOwner = '';
+    }
     return this.state.settings;
   }
 
@@ -419,6 +426,16 @@ class Store {
       next.ownerProfiles = this.normalizeOwnerProfiles(payload.ownerProfiles);
     } else if (!Array.isArray(next.ownerProfiles)) {
       next.ownerProfiles = [];
+    }
+
+    if (payload.defaultFixedExpensesOwner !== undefined) {
+      if (payload.defaultFixedExpensesOwner === null) {
+        next.defaultFixedExpensesOwner = '';
+      } else if (typeof payload.defaultFixedExpensesOwner === 'string') {
+        next.defaultFixedExpensesOwner = payload.defaultFixedExpensesOwner.trim();
+      }
+    } else if (typeof next.defaultFixedExpensesOwner !== 'string') {
+      next.defaultFixedExpensesOwner = '';
     }
 
     this.state.settings = next;
@@ -464,7 +481,11 @@ class Store {
     const settingsPayload = data.settings || {};
     const settings = {
       monthlyNetIncome: Number(settingsPayload.monthlyNetIncome) || 0,
-      ownerProfiles: this.normalizeOwnerProfiles(settingsPayload.ownerProfiles || settingsPayload.ownerprofiles)
+      ownerProfiles: this.normalizeOwnerProfiles(settingsPayload.ownerProfiles || settingsPayload.ownerprofiles),
+      defaultFixedExpensesOwner:
+        typeof settingsPayload.defaultFixedExpensesOwner === 'string'
+          ? settingsPayload.defaultFixedExpensesOwner.trim()
+          : ''
     };
 
     const counters = data.counters || {

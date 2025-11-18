@@ -1188,6 +1188,36 @@ select:focus {
   max-width: none;
 }
 
+.default-owner-selector {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.owner-default-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.owner-default-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--surface-soft);
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  flex-wrap: wrap;
+}
+
+.owner-default-row .badge {
+  background: var(--badge-bg);
+}
+
 .settings-status {
   margin-top: 1.5rem;
   padding: 1rem 1.25rem;

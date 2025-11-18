@@ -95,6 +95,7 @@ const FixedExpensesPage = () => {
   const [ownerProfiles, setOwnerProfiles] = useState([]);
   const [settingsError, setSettingsError] = useState('');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [defaultOwner, setDefaultOwner] = useState('');
   const availableCategories = useMemo(() => {
     if (!form.category || categoryOptions.includes(form.category)) {
       return categoryOptions;
@@ -123,6 +124,9 @@ const FixedExpensesPage = () => {
         if (!isMounted) return;
         setMonthlyNetIncome(Number(settings.monthlyNetIncome) || 0);
         setOwnerProfiles(Array.isArray(settings.ownerProfiles) ? settings.ownerProfiles : []);
+        setDefaultOwner(
+          typeof settings.defaultFixedExpensesOwner === 'string' ? settings.defaultFixedExpensesOwner : ''
+        );
         setSettingsError('');
       } catch (err) {
         if (!isMounted) return;
@@ -266,14 +270,16 @@ const FixedExpensesPage = () => {
     return map;
   }, [ownerProfiles]);
 
-  const activeIncome = selectedOwner ? ownerIncomeMap.get(selectedOwner) : monthlyNetIncome;
+  const effectiveOwner = selectedOwner ?? (defaultOwner || null);
+  const activeIncome = effectiveOwner ? ownerIncomeMap.get(effectiveOwner) : monthlyNetIncome;
   const hasIncomeValue = typeof activeIncome === 'number' && Number.isFinite(activeIncome);
   const freeAfterFixed = hasIncomeValue ? activeIncome - totalPerMonth : null;
   const netIncomeLoaded = settingsLoaded;
   const luxuryTotal = levelTotals.find((item) => item.level === 'Luksus')?.total || 0;
-  const missingIncomeForOwner = settingsLoaded && selectedOwner && !hasIncomeValue;
+  const missingIncomeForOwner = settingsLoaded && effectiveOwner && !hasIncomeValue;
   const filterDescription = selectedOwner ? `utgiftene til ${selectedOwner}` : 'alle faste utgifter';
-  const incomeSourceDescription = selectedOwner ? `${selectedOwner} sin netto inntekt` : 'netto inntekt';
+  const incomeSourceDescription = effectiveOwner ? `${effectiveOwner} sin netto inntekt` : 'netto inntekt';
+  const showingDefaultOwnerIncome = !selectedOwner && !!defaultOwner;
 
   const handleOpenForm = (expense) => {
     // Hent alltid siste kategorier når skjemaet åpnes
@@ -426,11 +432,14 @@ const FixedExpensesPage = () => {
               </p>
               <p className="muted">
                 Basert på {incomeSourceDescription} og {filterDescription}.
+                {showingDefaultOwnerIncome && ' (Standardvalgt tag fra innstillinger.)'}
               </p>
             </>
           )}
           {missingIncomeForOwner && (
-            <p className="muted">Legg inn netto inntekt for {selectedOwner} under Innstillinger.</p>
+            <p className="muted">
+              Legg inn netto inntekt for {effectiveOwner} under Innstillinger.
+            </p>
           )}
           {settingsError && <p className="error-text">{settingsError}</p>}
         </div>
