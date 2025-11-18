@@ -858,6 +858,27 @@ select:focus {
   gap: 0.35rem;
 }
 
+.owner-filter-panel {
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface-alt);
+  margin-bottom: 1.5rem;
+}
+
+.owner-filter-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.owner-filter-panel .chip-list {
+  margin-top: 0.25rem;
+}
+
 .savings-page {
   display: flex;
   flex-direction: column;
