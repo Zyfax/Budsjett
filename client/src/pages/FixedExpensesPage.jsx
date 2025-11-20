@@ -572,6 +572,15 @@ const FixedExpensesPage = () => {
 
   const usePersonalIncomeForOwners = bankModeEnabled && activeOwners.length > 0;
 
+  const activeSharedContributionTotal = useMemo(() => {
+    if (!usePersonalIncomeForOwners) return 0;
+    return activeOwners.reduce((sum, owner) => {
+      const profile = ownerProfiles.find((item) => item.name === owner);
+      const contribution = Number(profile?.sharedContribution);
+      return sum + (Number.isFinite(contribution) ? contribution : 0);
+    }, 0);
+  }, [activeOwners, ownerProfiles, usePersonalIncomeForOwners]);
+
   const ownerIncomeMap = useMemo(() => {
     const map = new Map();
     ownerProfiles.forEach((profile) => {
@@ -579,7 +588,7 @@ const FixedExpensesPage = () => {
       const personalIncome = Number(profile.monthlyNetIncome);
       const sharedContribution = Number(profile.sharedContribution);
       const value = usePersonalIncomeForOwners
-        ? personalIncome - (Number.isFinite(sharedContribution) ? sharedContribution : 0)
+        ? personalIncome
         : bankModeEnabled
         ? Number(profile.sharedContribution)
         : Number(profile.monthlyNetIncome);
@@ -611,7 +620,9 @@ const FixedExpensesPage = () => {
     ? totalOwnerValue
     : monthlyNetIncome;
   const hasIncomeValue = typeof activeIncome === 'number' && Number.isFinite(activeIncome);
-  const freeAfterFixed = hasIncomeValue ? activeIncome - totalPerMonth : null;
+  const contributionAdjustedTotalPerMonth = totalPerMonth + activeSharedContributionTotal;
+  const contributionAdjustedFullTotalPerMonth = fullTotalPerMonth + activeSharedContributionTotal;
+  const freeAfterFixed = hasIncomeValue ? activeIncome - contributionAdjustedTotalPerMonth : null;
   const netIncomeLoaded = settingsLoaded;
   const luxuryTotal = levelTotals.find((item) => item.level === 'Luksus')?.total || 0;
   const missingIncomeOwners =
@@ -635,6 +646,10 @@ const FixedExpensesPage = () => {
     : activeOwners.length
     ? `${activeOwners.join(', ')} sin samlede netto inntekt`
     : 'netto inntekt';
+  const bankModeSharedAccountDescription =
+    bankModeEnabled && usePersonalIncomeForOwners
+      ? ' Inkluderer også beløp som settes av til eller trekkes fra felleskontoene til valgt person.'
+      : '';
   const showingDefaultOwnerIncome = !hasManualOwnerSelection && defaultOwners.length > 0;
   const manualFilterActive = hasManualOwnerSelection && activeOwners.length > 0;
   const filtersActive = manualFilterActive || hasAccountFilter;
@@ -870,7 +885,9 @@ const FixedExpensesPage = () => {
     if (!simulatedExpense) return null;
     const categoryKey = simulatedExpense.category || 'Annet';
     const baselineIncludesExpense = !hiddenCategories.includes(categoryKey);
-    const baselineTotal = baselineIncludesExpense ? totalPerMonth : fullTotalPerMonth;
+    const baselineTotal = baselineIncludesExpense
+      ? contributionAdjustedTotalPerMonth
+      : contributionAdjustedFullTotalPerMonth;
     const savedMonthly = simulatedExpense.amountPerMonth || 0;
     const newTotal = baselineTotal - savedMonthly;
     return {
@@ -879,7 +896,12 @@ const FixedExpensesPage = () => {
       savedMonthly,
       savedYearly: savedMonthly * 12
     };
-  }, [simulatedExpense, totalPerMonth, fullTotalPerMonth, hiddenCategories]);
+  }, [
+    contributionAdjustedFullTotalPerMonth,
+    contributionAdjustedTotalPerMonth,
+    hiddenCategories,
+    simulatedExpense
+  ]);
 
 
 
@@ -954,7 +976,7 @@ const FixedExpensesPage = () => {
       <div className="card-grid">
         <div className="card insight-card glow-lilac">
           <h3>Totale faste kostnader per måned</h3>
-          <p className="stat">{formatCurrency(totalPerMonth)}</p>
+          <p className="stat">{formatCurrency(contributionAdjustedTotalPerMonth)}</p>
           <p className="muted">
             {filteredExpenses.length} aktive avtaler
             {filtersActive && ` (av ${expenses.length})`}
@@ -962,6 +984,13 @@ const FixedExpensesPage = () => {
               <>
                 <br />
                 Ekskluderer {hiddenCategories.join(', ')} via kategori-filteret.
+              </>
+            )}
+            {bankModeEnabled && usePersonalIncomeForOwners && activeSharedContributionTotal !== 0 && (
+              <>
+                <br />
+                Inkluderer {formatCurrency(activeSharedContributionTotal)} som
+                {activeSharedContributionTotal > 0 ? ' settes av til' : ' trekkes fra'} felleskontoene.
               </>
             )}
           </p>
@@ -975,7 +1004,7 @@ const FixedExpensesPage = () => {
                 {formatCurrency(freeAfterFixed)}
               </p>
               <p className="muted">
-                Basert på {incomeSourceDescription} og {filterDescription}.
+                Basert på {incomeSourceDescription} og {filterDescription}.{bankModeSharedAccountDescription}
                 {showingDefaultOwnerIncome && ' (Standardvalg fra innstillinger.)'}
                 {hiddenCategories.length > 0 && ' Viser kun valgte kategorier fra grafen.'}
               </p>
