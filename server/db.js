@@ -11,7 +11,10 @@ const DEFAULT_SETTINGS = {
   monthlyNetIncome: 0,
   ownerProfiles: [],
   defaultFixedExpensesOwner: '',
-  defaultFixedExpensesOwners: []
+  defaultFixedExpensesOwners: [],
+  lockEnabled: false,
+  lockSalt: '',
+  lockHash: ''
 };
 
 const defaultData = {
@@ -80,6 +83,20 @@ class Store {
       }
       this.state.settings.defaultFixedExpensesOwner =
         this.state.settings.defaultFixedExpensesOwners[0] || '';
+
+      if (typeof this.state.settings.lockEnabled !== 'boolean') {
+        this.state.settings.lockEnabled = false;
+      }
+      if (typeof this.state.settings.lockSalt !== 'string') {
+        this.state.settings.lockSalt = '';
+      }
+      if (typeof this.state.settings.lockHash !== 'string') {
+        this.state.settings.lockHash = '';
+      }
+      if (!this.state.settings.lockEnabled) {
+        this.state.settings.lockSalt = '';
+        this.state.settings.lockHash = '';
+      }
     }
 
     if (!Array.isArray(this.state.fixedExpenses)) {
@@ -488,6 +505,22 @@ class Store {
 
     next.defaultFixedExpensesOwner = next.defaultFixedExpensesOwners[0] || '';
 
+    if (payload.lockEnabled !== undefined) {
+      next.lockEnabled = Boolean(payload.lockEnabled);
+      if (!next.lockEnabled) {
+        next.lockSalt = '';
+        next.lockHash = '';
+      }
+    }
+
+    if (payload.lockSalt !== undefined) {
+      next.lockSalt = typeof payload.lockSalt === 'string' ? payload.lockSalt : '';
+    }
+
+    if (payload.lockHash !== undefined) {
+      next.lockHash = typeof payload.lockHash === 'string' ? payload.lockHash : '';
+    }
+
     this.state.settings = next;
     this.save();
     return this.state.settings;
@@ -539,7 +572,10 @@ class Store {
       monthlyNetIncome: Number(settingsPayload.monthlyNetIncome) || 0,
       ownerProfiles: this.normalizeOwnerProfiles(settingsPayload.ownerProfiles || settingsPayload.ownerprofiles),
       defaultFixedExpensesOwner: defaultOwnersFromPayload[0] || '',
-      defaultFixedExpensesOwners: defaultOwnersFromPayload
+      defaultFixedExpensesOwners: defaultOwnersFromPayload,
+      lockEnabled: Boolean(settingsPayload.lockEnabled),
+      lockSalt: typeof settingsPayload.lockSalt === 'string' ? settingsPayload.lockSalt : '',
+      lockHash: typeof settingsPayload.lockHash === 'string' ? settingsPayload.lockHash : ''
     };
 
     const counters = data.counters || {
