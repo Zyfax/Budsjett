@@ -482,6 +482,77 @@ main {
   margin-top: 1.5rem;
 }
 
+.price-trend-visuals {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.price-trend-table {
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--surface), var(--surface-alt));
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+.price-trend-table-header,
+.price-trend-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+}
+
+.price-trend-table-header {
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.price-trend-table-row:not(:last-child) {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.price-trend-name {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.price-trend-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.price-trend-metric strong,
+.price-trend-change strong,
+.price-trend-updated strong {
+  display: block;
+}
+
+.price-trend-change.up strong {
+  color: #16a34a;
+}
+
+.price-trend-change.down strong {
+  color: #ef4444;
+}
+
+.price-trend-change.flat strong {
+  color: var(--text-secondary);
+}
+
+.color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.15);
+}
+
 .fixed-expenses-page .bulk-update-card {
   margin-top: 2rem;
 }
@@ -682,6 +753,13 @@ main {
   align-items: center;
 }
 
+.expense-entry-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
 .expense-name {
   margin: 0;
   font-size: 0.95rem;
@@ -738,8 +816,83 @@ main {
   justify-content: flex-end;
 }
 
+.icon-button {
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.icon-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--card-shadow);
+  color: var(--accent);
+}
+
+.icon-button:active {
+  transform: translateY(0);
+}
+
+.price-toggle {
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  background: var(--surface-alt);
+}
+
+.price-toggle.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.price-adjustment {
+  margin-top: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.85rem;
+  background: var(--surface-alt);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+  display: grid;
+  gap: 0.65rem;
+}
+
+.price-adjustment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.price-adjustment-title {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.price-adjustment-meta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 140px;
+}
+
 @media (max-width: 720px) {
   .category-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .expense-entry-top {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -753,6 +906,21 @@ main {
   .expense-amount {
     text-align: left;
     align-items: flex-start;
+  }
+
+  .price-trend-table-header,
+  .price-trend-table-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .price-trend-table-header span:nth-child(3),
+  .price-trend-table-header span:nth-child(4) {
+    display: none;
+  }
+
+  .price-trend-table-row .price-trend-updated {
+    display: none;
   }
 }
 

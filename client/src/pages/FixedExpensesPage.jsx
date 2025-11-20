@@ -126,6 +126,7 @@ const FixedExpensesPage = () => {
   const [priceErrors, setPriceErrors] = useState({});
   const [isUpdatingPriceId, setIsUpdatingPriceId] = useState(null);
   const [isResettingPriceId, setIsResettingPriceId] = useState(null);
+  const [expandedPriceIds, setExpandedPriceIds] = useState([]);
   const ownerOptions = useMemo(() => {
     const set = new Set();
     expenses.forEach((expense) => {
@@ -425,6 +426,41 @@ const FixedExpensesPage = () => {
     []
   );
 
+  const priceTrendTableRows = useMemo(
+    () =>
+      priceTrendExpenses.map((expense) => {
+        const sortedHistory = (expense.priceHistory || [])
+          .map((entry) => ({
+            amount: Number(entry.amount) || 0,
+            changedAt: entry.changedAt
+          }))
+          .filter((entry) => entry.changedAt)
+          .sort((a, b) => new Date(a.changedAt) - new Date(b.changedAt));
+
+        const latestEntry = sortedHistory[sortedHistory.length - 1];
+        const previousEntry = sortedHistory[sortedHistory.length - 2];
+        const firstEntry = sortedHistory[0];
+
+        const latestAmount = latestEntry?.amount ?? expense.amountPerMonth ?? 0;
+        const baseline = firstEntry?.amount ?? latestAmount;
+        const absoluteChange = latestAmount - baseline;
+        const percentChange = baseline ? (absoluteChange / baseline) * 100 : null;
+        const lastUpdated = latestEntry?.changedAt ?? null;
+
+        return {
+          id: expense.id,
+          name: expense.name,
+          category: expense.category,
+          latestAmount,
+          absoluteChange,
+          percentChange,
+          lastUpdated,
+          previousAmount: previousEntry?.amount ?? latestAmount
+        };
+      }),
+    [priceTrendExpenses]
+  );
+
   useEffect(() => {
     setHiddenCategories((current) => current.filter((category) => categoryTotals.some((item) => item.category === category)));
   }, [categoryTotals]);
@@ -624,14 +660,25 @@ const FixedExpensesPage = () => {
     }
   };
 
+  const ensurePriceSectionVisible = useCallback((id) => {
+    setExpandedPriceIds((current) => (current.includes(id) ? current : [...current, id]));
+  }, []);
+
+  const handleTogglePriceSection = useCallback((id) => {
+    setExpandedPriceIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  }, []);
+
   const handleNewPriceChange = useCallback(
     (id, value) => {
       setPriceInputs((current) => ({ ...current, [id]: value }));
       if (priceErrors[id]) {
         setPriceErrors((current) => ({ ...current, [id]: '' }));
       }
+      ensurePriceSectionVisible(id);
     },
-    [priceErrors]
+    [priceErrors, ensurePriceSectionVisible]
   );
 
   const handleSubmitNewPrice = useCallback(
@@ -913,87 +960,111 @@ const FixedExpensesPage = () => {
                   </div>
                 </div>
                 <div className="category-expense-list">
-                  {group.items.map((expense) => (
-                    <article className="expense-entry" key={expense.id}>
-                      <div className="expense-entry-main">
-                        <div>
-                          <p className="expense-name">{expense.name}</p>
-                          {expense.startDate && (
-                            <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
-                          )}
-                          <div className="expense-meta">
-                            <span className="badge">{expense.level}</span>
-                            <span className="muted">Binding: {formatDate(expense.bindingEndDate)}</span>
-                            <span className="muted">Oppsigelse: {formatNotice(expense.noticePeriodMonths)}</span>
-                          </div>
-                          <div className="expense-owners">
-                            {(expense.owners || []).length === 0 ? (
-                              <span className="muted">Ingen eiere</span>
-                            ) : (
-                              <div className="chip-list">
-                                {(expense.owners || []).map((owner) => (
-                                  <button
-                                    type="button"
-                                    className={`chip chip-button${activeOwners.includes(owner) ? ' chip-active' : ''}`}
-                                    key={owner}
-                                    onClick={() => handleToggleOwnerFilter(owner)}
-                                  >
-                                    {owner}
-                                  </button>
-                                ))}
+                  {group.items.map((expense) => {
+                    const isPriceSectionOpen = expandedPriceIds.includes(expense.id);
+                    return (
+                      <article className="expense-entry" key={expense.id}>
+                        <div className="expense-entry-top">
+                          <div className="expense-entry-main">
+                            <div>
+                              <p className="expense-name">{expense.name}</p>
+                              {expense.startDate && (
+                                <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
+                              )}
+                              <div className="expense-meta">
+                                <span className="badge">{expense.level}</span>
+                                <span className="muted">Binding: {formatDate(expense.bindingEndDate)}</span>
+                                <span className="muted">Oppsigelse: {formatNotice(expense.noticePeriodMonths)}</span>
                               </div>
-                            )}
+                              <div className="expense-owners">
+                                {(expense.owners || []).length === 0 ? (
+                                  <span className="muted">Ingen eiere</span>
+                                ) : (
+                                  <div className="chip-list">
+                                    {(expense.owners || []).map((owner) => (
+                                      <button
+                                        type="button"
+                                        className={`chip chip-button${activeOwners.includes(owner) ? ' chip-active' : ''}`}
+                                        key={owner}
+                                        onClick={() => handleToggleOwnerFilter(owner)}
+                                      >
+                                        {owner}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              {expense.note && <p className="expense-note">{expense.note}</p>}
+                            </div>
+                            <div className="expense-amount">
+                              <span className="muted">Per måned</span>
+                              <strong>{formatCurrency(expense.amountPerMonth)}</strong>
+                            </div>
                           </div>
-                          {expense.note && <p className="expense-note">{expense.note}</p>}
-                        </div>
-                        <div className="expense-amount">
-                          <span className="muted">Per måned</span>
-                          <strong>{formatCurrency(expense.amountPerMonth)}</strong>
-                        </div>
-                      </div>
-                      <div className="price-adjustment">
-                        <label className="muted" htmlFor={`new-price-${expense.id}`}>
-                          Ny pris
-                        </label>
-                        <div className="inline-form">
-                          <input
-                            id={`new-price-${expense.id}`}
-                            type="number"
-                            min="0"
-                            step="1"
-                            placeholder="Oppgi ny pris"
-                            value={priceInputs[expense.id] ?? ''}
-                            onChange={(event) => handleNewPriceChange(expense.id, event.target.value)}
-                          />
                           <button
                             type="button"
-                            onClick={() => handleSubmitNewPrice(expense)}
-                            disabled={isUpdatingPriceId === expense.id}
+                            className={`icon-button price-toggle${isPriceSectionOpen ? ' active' : ''}`}
+                            aria-expanded={isPriceSectionOpen}
+                            onClick={() => handleTogglePriceSection(expense.id)}
                           >
-                            {isUpdatingPriceId === expense.id ? 'Lagrer…' : 'Oppdater pris'}
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => handleResetPriceHistory(expense)}
-                            disabled={isResettingPriceId === expense.id}
-                          >
-                            {isResettingPriceId === expense.id ? 'Resetter…' : 'Tilbakestill historikk'}
+                            {isPriceSectionOpen ? 'Pris & historikk' : 'Ny pris'}
                           </button>
                         </div>
-                        {priceErrors[expense.id] && <p className="error-text">{priceErrors[expense.id]}</p>}
-                      </div>
-                      <div className="expense-actions">
-                        <button className="secondary" onClick={() => setSimulatedExpense(expense)}>
-                          Simuler oppsigelse
-                        </button>
-                        <button className="secondary" onClick={() => handleOpenForm(expense)}>
-                          Rediger
-                        </button>
-                        <button onClick={() => handleDelete(expense.id)}>Slett</button>
-                      </div>
-                    </article>
-                  ))}
+                        {isPriceSectionOpen && (
+                          <div className="price-adjustment">
+                            <div className="price-adjustment-header">
+                              <div>
+                                <label className="muted subtle-label" htmlFor={`new-price-${expense.id}`}>
+                                  Ny pris
+                                </label>
+                                <p className="price-adjustment-title">Oppdater pris og historikk</p>
+                              </div>
+                              <div className="price-adjustment-meta">
+                                <span className="muted subtle-label">Siste registrerte</span>
+                                <strong>{formatCurrency(expense.amountPerMonth)}</strong>
+                              </div>
+                            </div>
+                            <div className="inline-form">
+                              <input
+                                id={`new-price-${expense.id}`}
+                                type="number"
+                                min="0"
+                                step="1"
+                                placeholder="Oppgi ny pris"
+                                value={priceInputs[expense.id] ?? ''}
+                                onChange={(event) => handleNewPriceChange(expense.id, event.target.value)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSubmitNewPrice(expense)}
+                                disabled={isUpdatingPriceId === expense.id}
+                              >
+                                {isUpdatingPriceId === expense.id ? 'Lagrer…' : 'Oppdater pris'}
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => handleResetPriceHistory(expense)}
+                                disabled={isResettingPriceId === expense.id}
+                              >
+                                {isResettingPriceId === expense.id ? 'Resetter…' : 'Tilbakestill historikk'}
+                              </button>
+                            </div>
+                            {priceErrors[expense.id] && <p className="error-text">{priceErrors[expense.id]}</p>}
+                          </div>
+                        )}
+                        <div className="expense-actions">
+                          <button className="secondary" onClick={() => setSimulatedExpense(expense)}>
+                            Simuler oppsigelse
+                          </button>
+                          <button className="secondary" onClick={() => handleOpenForm(expense)}>
+                            Rediger
+                          </button>
+                          <button onClick={() => handleDelete(expense.id)}>Slett</button>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               </section>
             );
@@ -1038,9 +1109,64 @@ const FixedExpensesPage = () => {
           </div>
           {priceTrendExpenses.length > 0 && <span className="badge">{priceTrendExpenses.length} utgifter</span>}
         </div>
-        {priceTrendChartData ? (
-          <div className="chart-wrapper">
-            <Line data={priceTrendChartData} options={priceTrendChartOptions} />
+        {priceTrendExpenses.length > 0 ? (
+          <div className="price-trend-visuals">
+            {priceTrendChartData ? (
+              <div className="chart-wrapper">
+                <Line data={priceTrendChartData} options={priceTrendChartOptions} />
+              </div>
+            ) : (
+              <p className="muted">Ingen prisendringer registrert ennå.</p>
+            )}
+            {priceTrendTableRows.length > 0 && (
+              <div className="price-trend-table" role="table">
+                <div className="price-trend-table-header" role="row">
+                  <span role="columnheader">Utgift</span>
+                  <span role="columnheader">Siste pris</span>
+                  <span role="columnheader">Utvikling</span>
+                  <span role="columnheader">Oppdatert</span>
+                </div>
+                {priceTrendTableRows.map((row) => {
+                  const changeLabel = `${row.absoluteChange >= 0 ? '+' : ''}${formatCurrency(row.absoluteChange)}`;
+                  const percentLabel =
+                    typeof row.percentChange === 'number'
+                      ? `${row.percentChange >= 0 ? '+' : ''}${row.percentChange.toFixed(1)}%`
+                      : null;
+                  const trendTone = row.absoluteChange > 0 ? 'up' : row.absoluteChange < 0 ? 'down' : 'flat';
+
+                  return (
+                    <div className="price-trend-table-row" key={row.id} role="row">
+                      <div className="price-trend-name" role="cell">
+                        <span
+                          className="color-dot"
+                          aria-hidden
+                          style={{ backgroundColor: categoryColorMap[row.category] || '#6366f1' }}
+                        />
+                        <div>
+                          <p className="price-trend-title">{row.name}</p>
+                          <p className="muted subtle-label">{row.category}</p>
+                        </div>
+                      </div>
+                      <div className="price-trend-metric" role="cell">
+                        <span className="muted subtle-label">Siste</span>
+                        <strong>{formatCurrency(row.latestAmount)}</strong>
+                      </div>
+                      <div className={`price-trend-change ${trendTone}`} role="cell">
+                        <span className="muted subtle-label">Siden start</span>
+                        <strong>
+                          {changeLabel}
+                          {percentLabel && <span className="muted"> ({percentLabel})</span>}
+                        </strong>
+                      </div>
+                      <div className="price-trend-updated" role="cell">
+                        <span className="muted subtle-label">Siste endring</span>
+                        <strong>{row.lastUpdated ? formatDate(row.lastUpdated) : '—'}</strong>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
           <p className="muted">Ingen prisendringer registrert ennå.</p>
