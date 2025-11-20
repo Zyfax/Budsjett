@@ -2,15 +2,97 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const { nanoid } = require('nanoid');
 const db = require('./db');
 
 const FIXED_EXPENSE_LEVELS = ['Må-ha', 'Kjekt å ha', 'Luksus'];
 
 const app = express();
 const PORT = process.env.PORT || 4173;
+const LOCK_COOKIE_NAME = 'budsjett_lock';
+const LOCK_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const activeLockTokens = new Map();
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
+
+const hashLockPassword = (password, salt) =>
+  crypto.scryptSync(String(password), String(salt), 64).toString('hex');
+
+const sanitizeSettings = (settings) => {
+  const { lockHash, lockSalt, ...rest } = settings;
+  const lockEnabled = Boolean(settings.lockEnabled && settings.lockHash && settings.lockSalt);
+  return { ...rest, lockEnabled };
+};
+
+const isLockEnabled = () => {
+  const settings = db.getSettings();
+  return Boolean(settings.lockEnabled && settings.lockHash && settings.lockSalt);
+};
+
+const verifyLockPassword = (password) => {
+  if (!password) return false;
+  const settings = db.getSettings();
+  if (!settings.lockHash || !settings.lockSalt) return false;
+  try {
+    const hashed = hashLockPassword(password, settings.lockSalt);
+    return crypto.timingSafeEqual(Buffer.from(hashed, 'hex'), Buffer.from(settings.lockHash, 'hex'));
+  } catch (err) {
+    return false;
+  }
+};
+
+const getCookies = (req) => {
+  const header = req.headers.cookie;
+  if (!header) return {};
+  return header.split(';').reduce((acc, pair) => {
+    const [key, value] = pair.split('=').map((part) => part && part.trim());
+    if (key) acc[key] = decodeURIComponent(value || '');
+    return acc;
+  }, {});
+};
+
+const readLockToken = (req) => {
+  const cookies = getCookies(req);
+  return req.headers['x-budsjett-lock'] || cookies[LOCK_COOKIE_NAME] || '';
+};
+
+const isValidLockToken = (token) => {
+  if (!token) return false;
+  const expires = activeLockTokens.get(token);
+  if (!expires) return false;
+  if (Date.now() > expires) {
+    activeLockTokens.delete(token);
+    return false;
+  }
+  return true;
+};
+
+const issueLockToken = (res) => {
+  const token = nanoid(32);
+  const expires = Date.now() + LOCK_TOKEN_TTL_MS;
+  activeLockTokens.set(token, expires);
+  res.cookie(LOCK_COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: LOCK_TOKEN_TTL_MS
+  });
+  return token;
+};
+
+const invalidateLockTokens = () => {
+  activeLockTokens.clear();
+};
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) return next();
+  if (!isLockEnabled()) return next();
+  if (req.path.startsWith('/api/lock')) return next();
+  const token = readLockToken(req);
+  if (isValidLockToken(token)) return next();
+  return res.status(401).json({ error: 'Siden er låst. Oppgi passord.' });
+});
 
 const enrichTransaction = (tx) => {
   const categories = db.getCategories();
@@ -37,6 +119,24 @@ const normalizeOwnersInput = (owners) => {
   }
   return [];
 };
+
+app.get('/api/lock/status', (req, res) => {
+  const enabled = isLockEnabled();
+  const unlocked = !enabled || isValidLockToken(readLockToken(req));
+  res.json({ enabled, unlocked });
+});
+
+app.post('/api/lock/unlock', (req, res) => {
+  const { password } = req.body || {};
+  if (!isLockEnabled()) {
+    return res.status(400).json({ error: 'Låsen er ikke aktivert.' });
+  }
+  if (!verifyLockPassword(password)) {
+    return res.status(401).json({ error: 'Feil passord.' });
+  }
+  issueLockToken(res);
+  res.json({ unlocked: true });
+});
 
 app.get('/api/categories', (req, res) => {
   res.json(db.getCategories());
@@ -275,13 +375,23 @@ app.delete('/api/faste-utgifter/:id', (req, res) => {
 });
 
 app.get('/api/settings', (req, res) => {
-  res.json(db.getSettings());
+  const settings = sanitizeSettings(db.getSettings());
+  res.json(settings);
 });
 
 app.put('/api/settings', (req, res) => {
-  const { monthlyNetIncome, ownerProfiles, defaultFixedExpensesOwner, defaultFixedExpensesOwners } =
-    req.body || {};
+  const {
+    monthlyNetIncome,
+    ownerProfiles,
+    defaultFixedExpensesOwner,
+    defaultFixedExpensesOwners,
+    lockPassword,
+    lockEnabled,
+    lockCurrentPassword
+  } = req.body || {};
   const update = {};
+  const currentlyLocked = isLockEnabled();
+  let shouldInvalidateLockSessions = false;
 
   if (monthlyNetIncome !== undefined) {
     const value = Number(monthlyNetIncome);
@@ -340,8 +450,40 @@ app.put('/api/settings', (req, res) => {
     }
   }
 
+  if (lockPassword !== undefined) {
+    if (typeof lockPassword !== 'string' || lockPassword.trim().length < 6) {
+      return res.status(400).json({ error: 'Passordet må være minst 6 tegn langt.' });
+    }
+    if (currentlyLocked && !verifyLockPassword(lockCurrentPassword || '')) {
+      return res.status(401).json({ error: 'Feil nåværende passord.' });
+    }
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = hashLockPassword(lockPassword.trim(), salt);
+    update.lockEnabled = true;
+    update.lockSalt = salt;
+    update.lockHash = hash;
+    shouldInvalidateLockSessions = true;
+  }
+
+  if (lockEnabled === false) {
+    if (currentlyLocked && !verifyLockPassword(lockCurrentPassword || '')) {
+      return res.status(401).json({ error: 'Feil nåværende passord.' });
+    }
+    update.lockEnabled = false;
+    update.lockSalt = '';
+    update.lockHash = '';
+    shouldInvalidateLockSessions = true;
+  } else if (lockEnabled === true && lockPassword === undefined && !currentlyLocked) {
+    return res.status(400).json({ error: 'Velg et passord for å aktivere låsen.' });
+  } else if (lockEnabled === true && lockPassword === undefined && currentlyLocked) {
+    update.lockEnabled = true;
+  }
+
   const updated = db.updateSettings(update);
-  res.json(updated);
+  if (shouldInvalidateLockSessions) {
+    invalidateLockTokens();
+  }
+  res.json(sanitizeSettings(updated));
 });
 
 app.get('/api/dashboard', (req, res) => {

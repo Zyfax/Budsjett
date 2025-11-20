@@ -3,6 +3,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    credentials: 'include',
     ...options
   });
   if (!response.ok) {
@@ -43,6 +44,9 @@ export const api = {
 
   getSettings: () => request('/settings'),
   updateSettings: (payload) => request('/settings', { method: 'PUT', body: JSON.stringify(payload) }),
+
+  getLockStatus: () => request('/lock/status'),
+  unlock: (password) => request('/lock/unlock', { method: 'POST', body: JSON.stringify({ password }) }),
 
   exportData: () => request('/export'),
   importData: (payload) => request('/import', { method: 'POST', body: JSON.stringify(payload) })

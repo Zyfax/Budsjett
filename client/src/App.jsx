@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
+import { api } from './api.js';
 import DashboardPage from './pages/DashboardPage.jsx';
 import SavingsGoalsPage from './pages/SavingsGoalsPage.jsx';
 import CategoriesPage from './pages/CategoriesPage.jsx';
@@ -21,11 +22,29 @@ const App = () => {
   const [theme, setTheme] = useState(getInitialTheme);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [lockState, setLockState] = useState({ loading: true, enabled: false, unlocked: true });
+  const [lockError, setLockError] = useState('');
+  const [lockPassword, setLockPassword] = useState('');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('budsjett-theme', theme);
   }, [theme]);
+
+  const refreshLockStatus = useCallback(async () => {
+    try {
+      const status = await api.getLockStatus();
+      setLockState({
+        loading: false,
+        enabled: Boolean(status.enabled),
+        unlocked: Boolean(status.unlocked)
+      });
+      setLockError('');
+    } catch (err) {
+      setLockState({ loading: false, enabled: true, unlocked: false });
+      setLockError('Kunne ikke hente låsestatus: ' + err.message);
+    }
+  }, []);
 
   const standaloneMediaQuery = useMemo(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return null;
@@ -68,6 +87,10 @@ const App = () => {
     };
   }, [standaloneMediaQuery]);
 
+  useEffect(() => {
+    refreshLockStatus();
+  }, [refreshLockStatus]);
+
   const handleInstallClick = async () => {
     if (!installPromptEvent) return;
     installPromptEvent.prompt();
@@ -79,6 +102,55 @@ const App = () => {
   };
 
   const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+
+  const handleUnlock = async (event) => {
+    event.preventDefault();
+    setLockError('');
+    try {
+      await api.unlock(lockPassword);
+      setLockPassword('');
+      await refreshLockStatus();
+    } catch (err) {
+      setLockError(err.message || 'Kunne ikke låse opp.');
+    }
+  };
+
+  if (lockState.loading) {
+    return (
+      <div className="lock-screen">
+        <div className="lock-card">
+          <h1>Familiebudsjett</h1>
+          <p className="muted">Laster…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (lockState.enabled && !lockState.unlocked) {
+    return (
+      <div className="lock-screen">
+        <div className="lock-card">
+          <h1>Familiebudsjett</h1>
+          <p className="muted">Siden er låst. Oppgi passordet for å gå videre.</p>
+          <form className="lock-form" onSubmit={handleUnlock}>
+            <label htmlFor="lock-password">Passord</label>
+            <input
+              id="lock-password"
+              type="password"
+              autoFocus
+              placeholder="Skriv inn passordet"
+              value={lockPassword}
+              onChange={(e) => setLockPassword(e.target.value)}
+            />
+            <button type="submit" disabled={!lockPassword.trim()}>
+              Lås opp siden
+            </button>
+          </form>
+          {lockError && <p className="error-text" style={{ marginTop: '0.75rem' }}>{lockError}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">

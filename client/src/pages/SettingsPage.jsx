@@ -16,6 +16,13 @@ const SettingsPage = () => {
   const [defaultOwnerStatus, setDefaultOwnerStatus] = useState('');
   const [defaultOwnerError, setDefaultOwnerError] = useState('');
   const [isUpdatingDefaultOwner, setIsUpdatingDefaultOwner] = useState(false);
+  const [lockEnabled, setLockEnabled] = useState(false);
+  const [lockStatus, setLockStatus] = useState('');
+  const [lockError, setLockError] = useState('');
+  const [newLockPassword, setNewLockPassword] = useState('');
+  const [confirmLockPassword, setConfirmLockPassword] = useState('');
+  const [currentLockPassword, setCurrentLockPassword] = useState('');
+  const [isUpdatingLock, setIsUpdatingLock] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -36,6 +43,7 @@ const SettingsPage = () => {
           ? [data.defaultFixedExpensesOwner.trim()]
           : [];
         setDefaultOwners(defaults);
+        setLockEnabled(Boolean(data.lockEnabled));
       } catch (err) {
         if (!isMounted) return;
         setOwnerError('Kunne ikke hente personer: ' + err.message);
@@ -180,6 +188,59 @@ const SettingsPage = () => {
     }
   };
 
+  const handleSaveLock = async () => {
+    setLockStatus('');
+    setLockError('');
+    const trimmedPassword = newLockPassword.trim();
+    const trimmedConfirm = confirmLockPassword.trim();
+    if (!trimmedPassword) {
+      setLockError('Velg et passord for å aktivere eller oppdatere låsen.');
+      return;
+    }
+    if (trimmedPassword !== trimmedConfirm) {
+      setLockError('Passordene må være like.');
+      return;
+    }
+    setIsUpdatingLock(true);
+    try {
+      const updated = await api.updateSettings({
+        lockEnabled: true,
+        lockPassword: trimmedPassword,
+        lockCurrentPassword: currentLockPassword || undefined
+      });
+      setLockEnabled(Boolean(updated.lockEnabled));
+      setLockStatus('Lås oppdatert. Bruk dette passordet når du deler appen.');
+      setNewLockPassword('');
+      setConfirmLockPassword('');
+    } catch (err) {
+      setLockError(err.message || 'Kunne ikke lagre passord.');
+    } finally {
+      setIsUpdatingLock(false);
+    }
+  };
+
+  const handleDisableLock = async () => {
+    setLockStatus('');
+    setLockError('');
+    if (!currentLockPassword.trim()) {
+      setLockError('Skriv inn nåværende passord for å slå av låsen.');
+      return;
+    }
+    setIsUpdatingLock(true);
+    try {
+      const updated = await api.updateSettings({
+        lockEnabled: false,
+        lockCurrentPassword: currentLockPassword
+      });
+      setLockEnabled(Boolean(updated.lockEnabled));
+      setLockStatus('Lås er deaktivert.');
+    } catch (err) {
+      setLockError(err.message || 'Kunne ikke skru av låsen.');
+    } finally {
+      setIsUpdatingLock(false);
+    }
+  };
+
   const toggleDefaultOwnerSelection = async (name) => {
     const trimmed = name?.trim();
     if (!trimmed) return;
@@ -260,6 +321,91 @@ const SettingsPage = () => {
               <div className="settings-actions">
                 <input type="file" ref={fileRef} accept="application/json" />
                 <button onClick={handleImport}>Importer</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card settings-card">
+          <div className="settings-card-header">
+            <div>
+              <p className="eyebrow">Tilgang</p>
+              <h3>Beskytt siden med passord</h3>
+              <p className="muted">
+                Aktiver en sidelås når appen er publisert, slik at kun de med passordet kan åpne den.
+              </p>
+            </div>
+            {lockStatus && <p className="settings-status-inline success">{lockStatus}</p>}
+            {lockError && <p className="settings-status-inline error-text">{lockError}</p>}
+          </div>
+          <div className="settings-subgrid">
+            <div className="settings-tile">
+              <div>
+                <h4>Status</h4>
+                <p className="muted">{lockEnabled ? 'Låsen er aktivert.' : 'Låsen er ikke aktivert.'}</p>
+              </div>
+              <div className="settings-actions">
+                <span className={`badge ${lockEnabled ? 'success' : ''}`}>
+                  {lockEnabled ? 'På' : 'Av'}
+                </span>
+              </div>
+            </div>
+            <div className="settings-tile">
+              <div>
+                <h4>Administrer passord</h4>
+                <p className="muted">
+                  Oppgi nåværende passord for å endre eller deaktivere låsen. Velg et nytt passord for å
+                  aktivere eller bytte til et annet.
+                </p>
+              </div>
+              <div className="settings-actions" style={{ gap: '0.5rem', width: '100%' }}>
+                <label className="muted" htmlFor="current-lock-password">
+                  Nåværende passord
+                </label>
+                <input
+                  id="current-lock-password"
+                  type="password"
+                  placeholder="Skriv nåværende passord"
+                  value={currentLockPassword}
+                  onChange={(e) => setCurrentLockPassword(e.target.value)}
+                />
+                <label className="muted" htmlFor="new-lock-password">
+                  Nytt passord
+                </label>
+                <input
+                  id="new-lock-password"
+                  type="password"
+                  placeholder="Lag et sterkt passord"
+                  value={newLockPassword}
+                  onChange={(e) => setNewLockPassword(e.target.value)}
+                />
+                <label className="muted" htmlFor="confirm-lock-password">
+                  Bekreft nytt passord
+                </label>
+                <input
+                  id="confirm-lock-password"
+                  type="password"
+                  placeholder="Gjenta passordet"
+                  value={confirmLockPassword}
+                  onChange={(e) => setConfirmLockPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveLock}
+                  disabled={isUpdatingLock}
+                  style={{ width: '100%' }}
+                >
+                  {isUpdatingLock ? 'Lagrer…' : lockEnabled ? 'Oppdater passord' : 'Aktiver lås'}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={handleDisableLock}
+                  disabled={isUpdatingLock || !lockEnabled}
+                  style={{ width: '100%' }}
+                >
+                  Skru av lås
+                </button>
               </div>
             </div>
           </div>
