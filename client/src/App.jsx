@@ -7,8 +7,6 @@ import CategoriesPage from './pages/CategoriesPage.jsx';
 import PagesPage from './pages/PagesPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 import FixedExpensesPage from './pages/FixedExpensesPage.jsx';
-import TransactionDetailPage from './pages/TransactionDetailPage.jsx';
-import TransactionSearch from './components/TransactionSearch.jsx';
 
 const getInitialTheme = () => {
   if (typeof window === 'undefined') return 'light';
@@ -167,7 +165,6 @@ const App = () => {
               📲 Installer appen
             </button>
           )}
-          <TransactionSearch />
           <div className="nav-links">
             <NavLink to="/" end>
               Oversikt
@@ -190,7 +187,6 @@ const App = () => {
           <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/pages" element={<PagesPage />} />
           <Route path="/innstillinger" element={<SettingsPage />} />
-          <Route path="/transaksjon/:id" element={<TransactionDetailPage />} />
         </Routes>
       </main>
     </div>
