@@ -17,6 +17,19 @@ const FALLBACK_CATEGORY_COLORS = {
 };
 const LEVEL_OPTIONS = ['Må-ha', 'Kjekt å ha', 'Luksus'];
 
+const hexToRgba = (hex, alpha = 1) => {
+  if (typeof hex !== 'string') return `rgba(148, 163, 184, ${alpha})`;
+  const normalized = hex.trim().replace('#', '');
+  const expanded = normalized.length === 3 ? normalized.split('').map((char) => char + char).join('') : normalized;
+  if (expanded.length !== 6) return `rgba(148, 163, 184, ${alpha})`;
+  const numeric = Number.parseInt(expanded, 16);
+  if (Number.isNaN(numeric)) return `rgba(148, 163, 184, ${alpha})`;
+  const r = (numeric >> 16) & 255;
+  const g = (numeric >> 8) & 255;
+  const b = numeric & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const createEmptyForm = (category = FALLBACK_CATEGORY_OPTIONS[0]) => ({
   name: '',
   amountPerMonth: '',
@@ -194,6 +207,20 @@ const FixedExpensesPage = () => {
   useEffect(() => {
     loadCategories();
   }, [loadCategories]);
+
+  const getCategoryStyle = useCallback(
+    (categoryName) => {
+      const color = categoryColorMap[categoryName] || FALLBACK_CATEGORY_COLORS[categoryName] || '#94a3b8';
+      return {
+        '--category-accent': hexToRgba(color, 0.14),
+        '--category-accent-strong': hexToRgba(color, 0.26),
+        '--category-border': hexToRgba(color, 0.38),
+        '--category-glow': hexToRgba(color, 0.22),
+        '--category-solid': color
+      };
+    },
+    [categoryColorMap]
+  );
 
   const activeOwners = useMemo(
     () => (hasManualOwnerSelection ? selectedOwners : defaultOwners),
@@ -661,71 +688,74 @@ const FixedExpensesPage = () => {
       </div>
       <div className="category-sections">
         {groupedExpenses.length === 0 && <p className="muted">Ingen registrerte utgifter ennå.</p>}
-        {groupedExpenses.map((group) => (
-          <section className="category-section" key={group.category}>
-            <div className="category-section-header">
-              <div>
-                <h3>{group.category}</h3>
-                <p className="muted">{group.items.length} avtaler</p>
+        {groupedExpenses.map((group) => {
+          const categoryStyle = getCategoryStyle(group.category);
+          return (
+            <section className="category-section" key={group.category} style={categoryStyle}>
+              <div className="category-section-header">
+                <div>
+                  <h3>{group.category}</h3>
+                  <p className="muted">{group.items.length} avtaler</p>
+                </div>
+                <div className="category-total">
+                  <span className="muted">Sum</span>
+                  <strong>{formatCurrency(group.total)}</strong>
+                </div>
               </div>
-              <div className="category-total">
-                <span className="muted">Sum</span>
-                <strong>{formatCurrency(group.total)}</strong>
-              </div>
-            </div>
-            <div className="category-expense-list">
-              {group.items.map((expense) => (
-                <article className="expense-entry" key={expense.id}>
-                  <div className="expense-entry-main">
-                    <div>
-                      <p className="expense-name">{expense.name}</p>
-                      {expense.startDate && (
-                        <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
-                      )}
-                      <div className="expense-meta">
-                        <span className="badge">{expense.level}</span>
-                        <span className="muted">Binding: {formatDate(expense.bindingEndDate)}</span>
-                        <span className="muted">Oppsigelse: {formatNotice(expense.noticePeriodMonths)}</span>
-                      </div>
-                      <div className="expense-owners">
-                        {(expense.owners || []).length === 0 ? (
-                          <span className="muted">Ingen eiere</span>
-                        ) : (
-                          <div className="chip-list">
-                            {(expense.owners || []).map((owner) => (
-                              <button
-                                type="button"
-                                className={`chip chip-button${activeOwners.includes(owner) ? ' chip-active' : ''}`}
-                                key={owner}
-                                onClick={() => handleToggleOwnerFilter(owner)}
-                              >
-                                {owner}
-                              </button>
-                            ))}
-                          </div>
+              <div className="category-expense-list">
+                {group.items.map((expense) => (
+                  <article className="expense-entry" key={expense.id}>
+                    <div className="expense-entry-main">
+                      <div>
+                        <p className="expense-name">{expense.name}</p>
+                        {expense.startDate && (
+                          <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
                         )}
+                        <div className="expense-meta">
+                          <span className="badge">{expense.level}</span>
+                          <span className="muted">Binding: {formatDate(expense.bindingEndDate)}</span>
+                          <span className="muted">Oppsigelse: {formatNotice(expense.noticePeriodMonths)}</span>
+                        </div>
+                        <div className="expense-owners">
+                          {(expense.owners || []).length === 0 ? (
+                            <span className="muted">Ingen eiere</span>
+                          ) : (
+                            <div className="chip-list">
+                              {(expense.owners || []).map((owner) => (
+                                <button
+                                  type="button"
+                                  className={`chip chip-button${activeOwners.includes(owner) ? ' chip-active' : ''}`}
+                                  key={owner}
+                                  onClick={() => handleToggleOwnerFilter(owner)}
+                                >
+                                  {owner}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {expense.note && <p className="expense-note">{expense.note}</p>}
                       </div>
-                      {expense.note && <p className="expense-note">{expense.note}</p>}
+                      <div className="expense-amount">
+                        <span className="muted">Per måned</span>
+                        <strong>{formatCurrency(expense.amountPerMonth)}</strong>
+                      </div>
                     </div>
-                    <div className="expense-amount">
-                      <span className="muted">Per måned</span>
-                      <strong>{formatCurrency(expense.amountPerMonth)}</strong>
+                    <div className="expense-actions">
+                      <button className="secondary" onClick={() => setSimulatedExpense(expense)}>
+                        Simuler oppsigelse
+                      </button>
+                      <button className="secondary" onClick={() => handleOpenForm(expense)}>
+                        Rediger
+                      </button>
+                      <button onClick={() => handleDelete(expense.id)}>Slett</button>
                     </div>
-                  </div>
-                  <div className="expense-actions">
-                    <button className="secondary" onClick={() => setSimulatedExpense(expense)}>
-                      Simuler oppsigelse
-                    </button>
-                    <button className="secondary" onClick={() => handleOpenForm(expense)}>
-                      Rediger
-                    </button>
-                    <button onClick={() => handleDelete(expense.id)}>Slett</button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
+                  </article>
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
 
       <div className="card insight-card glow-sand bulk-update-card">
