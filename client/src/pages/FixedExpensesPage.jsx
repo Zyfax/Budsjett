@@ -36,11 +36,11 @@ const hexToRgba = (hex, alpha = 1) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const createEmptyForm = (category = FALLBACK_CATEGORY_OPTIONS[0]) => ({
+const createEmptyForm = (category = FALLBACK_CATEGORY_OPTIONS[0], owners = []) => ({
   name: '',
   amountPerMonth: '',
   category,
-  owners: '',
+  owners: Array.isArray(owners) ? [...owners] : [],
   level: LEVEL_OPTIONS[0],
   startDate: '',
   bindingEndDate: '',
@@ -127,6 +127,7 @@ const FixedExpensesPage = () => {
   const [isUpdatingPriceId, setIsUpdatingPriceId] = useState(null);
   const [isResettingPriceId, setIsResettingPriceId] = useState(null);
   const [expandedPriceIds, setExpandedPriceIds] = useState([]);
+  const [customOwnerInput, setCustomOwnerInput] = useState('');
   const ownerOptions = useMemo(() => {
     const set = new Set();
     expenses.forEach((expense) => {
@@ -139,6 +140,22 @@ const FixedExpensesPage = () => {
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'no'));
   }, [expenses]);
+  const availableOwners = useMemo(() => {
+    const set = new Set(ownerOptions);
+    ownerProfiles.forEach((profile) => {
+      const name = profile?.name?.trim();
+      if (name) {
+        set.add(name);
+      }
+    });
+    defaultOwners.forEach((owner) => {
+      const trimmed = owner?.trim();
+      if (trimmed) {
+        set.add(trimmed);
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'no'));
+  }, [defaultOwners, ownerOptions, ownerProfiles]);
   const availableCategories = useMemo(() => {
     if (!form.category || categoryOptions.includes(form.category)) {
       return categoryOptions;
@@ -554,7 +571,7 @@ const FixedExpensesPage = () => {
         name: expense.name,
         amountPerMonth: expense.amountPerMonth,
         category: expense.category || categoryOptions[0] || FALLBACK_CATEGORY_OPTIONS[0],
-        owners: (expense.owners || []).join(', '),
+        owners: Array.isArray(expense.owners) ? expense.owners : [],
         level: expense.level,
         startDate: expense.startDate || '',
         bindingEndDate: expense.bindingEndDate || '',
@@ -563,16 +580,18 @@ const FixedExpensesPage = () => {
       });
     } else {
       setEditingId(null);
-      setForm(createEmptyForm(categoryOptions[0] || FALLBACK_CATEGORY_OPTIONS[0]));
+      setForm(createEmptyForm(categoryOptions[0] || FALLBACK_CATEGORY_OPTIONS[0], defaultOwners));
     }
+    setCustomOwnerInput('');
     setShowForm(true);
   };
 
   const closeForm = useCallback(() => {
     setShowForm(false);
-    setForm(createEmptyForm(categoryOptions[0] || FALLBACK_CATEGORY_OPTIONS[0]));
+    setForm(createEmptyForm(categoryOptions[0] || FALLBACK_CATEGORY_OPTIONS[0], defaultOwners));
     setEditingId(null);
-  }, [categoryOptions]);
+    setCustomOwnerInput('');
+  }, [categoryOptions, defaultOwners]);
 
   const handleToggleOwnerFilter = useCallback(
     (owner) => {
@@ -602,12 +621,13 @@ const FixedExpensesPage = () => {
       name: form.name,
       amountPerMonth: Number(form.amountPerMonth),
       category: normalizedCategory,
-      owners: form.owners
-        ? form.owners
-            .split(',')
+      owners: Array.from(
+        new Set(
+          (form.owners || [])
             .map((owner) => owner.trim())
             .filter(Boolean)
-        : [],
+        )
+      ),
       level: form.level,
       startDate: form.startDate || '',
       bindingEndDate: form.bindingEndDate || '',
@@ -1209,11 +1229,59 @@ const FixedExpensesPage = () => {
                 </option>
               ))}
             </select>
-            <input
-              placeholder="Eiere (kommaseparert)"
-              value={form.owners}
-              onChange={(e) => setForm({ ...form, owners: e.target.value })}
-            />
+            <div className="form-field">
+              <label className="muted">Eiere</label>
+              {availableOwners.length > 0 ? (
+                <div className="chip-list" role="group" aria-label="Velg eiere for utgiften">
+                  {availableOwners.map((owner) => {
+                    const isSelected = (form.owners || []).includes(owner);
+                    return (
+                      <button
+                        type="button"
+                        key={owner}
+                        className={`chip chip-button${isSelected ? ' chip-active' : ''}`}
+                        onClick={() =>
+                          setForm((current) => {
+                            const owners = current.owners || [];
+                            if (owners.includes(owner)) {
+                              return { ...current, owners: owners.filter((item) => item !== owner) };
+                            }
+                            return { ...current, owners: [...owners, owner] };
+                          })
+                        }
+                      >
+                        {owner}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="muted subtle-label">Legg til en eier for å komme i gang.</p>
+              )}
+              <div className="inline-form">
+                <input
+                  placeholder="Legg til ny eier"
+                  value={customOwnerInput}
+                  onChange={(e) => setCustomOwnerInput(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = customOwnerInput.trim();
+                    if (!trimmed) return;
+                    setForm((current) => {
+                      const owners = current.owners || [];
+                      if (owners.includes(trimmed)) return current;
+                      return { ...current, owners: [...owners, trimmed] };
+                    });
+                    setCustomOwnerInput('');
+                  }}
+                  disabled={!customOwnerInput.trim()}
+                >
+                  Legg til
+                </button>
+              </div>
+            </div>
             <label className="muted">Startdato</label>
             <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
             <label className="muted">Binding utløper</label>
