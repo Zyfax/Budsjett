@@ -216,18 +216,9 @@ app.get('/api/transactions', (req, res) => {
   if (pageId) transactions = transactions.filter((tx) => String(tx.pageId) === String(pageId));
   if (search) {
     const q = search.toLowerCase();
-    const categoriesById = Object.fromEntries(db.getCategories().map((cat) => [cat.id, cat]));
-    const pagesById = Object.fromEntries(db.getPages().map((page) => [page.id, page]));
-
-    transactions = transactions.filter((tx) => {
-      const title = (tx.title || '').toLowerCase();
-      const notes = (tx.notes || '').toLowerCase();
-      const tags = Array.isArray(tx.tags) ? tx.tags.join(' ').toLowerCase() : '';
-      const categoryName = categoriesById[tx.categoryId]?.name?.toLowerCase() || '';
-      const pageName = pagesById[tx.pageId]?.name?.toLowerCase() || '';
-
-      return [title, notes, tags, categoryName, pageName].some((field) => field.includes(q));
-    });
+    transactions = transactions.filter(
+      (tx) => tx.title.toLowerCase().includes(q) || tx.notes.toLowerCase().includes(q)
+    );
   }
   if (tag) {
     transactions = transactions.filter((tx) => (tx.tags || []).some((t) => t.includes(tag)));
