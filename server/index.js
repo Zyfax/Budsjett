@@ -544,6 +544,16 @@ app.put('/api/settings', (req, res) => {
 
   if (bankModeEnabled === false) {
     update.defaultFixedExpensesBankAccount = '';
+    const sourceProfiles = Array.isArray(update.ownerProfiles)
+      ? update.ownerProfiles
+      : Array.isArray(currentSettings.ownerProfiles)
+      ? currentSettings.ownerProfiles
+      : [];
+    update.ownerProfiles = sourceProfiles.map((profile) => ({
+      ...profile,
+      sharedContribution: 0,
+      bankContributions: {}
+    }));
   }
 
   if (lockPassword !== undefined) {
