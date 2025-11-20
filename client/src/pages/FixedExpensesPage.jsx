@@ -570,7 +570,7 @@ const FixedExpensesPage = () => {
     };
   }, [categoryTotals]);
 
-  const usePersonalIncomeForOwners = bankModeEnabled && activeOwners.length > 0;
+  const usePersonalIncomeForOwners = bankModeEnabled && activeOwners.length === 1;
 
   const activeSharedContributionTotal = useMemo(() => {
     if (!usePersonalIncomeForOwners) return 0;
@@ -614,11 +614,18 @@ const FixedExpensesPage = () => {
     [bankModeEnabled, ownerProfiles, usePersonalIncomeForOwners]
   );
 
-  const activeIncome = activeOwners.length
-    ? activeOwners.reduce((sum, owner) => sum + (ownerIncomeMap.get(owner) || 0), 0)
-    : bankModeEnabled
-    ? totalOwnerValue
-    : monthlyNetIncome;
+  const householdIncome = bankModeEnabled ? totalOwnerValue : monthlyNetIncome;
+
+  const activeIncome = useMemo(() => {
+    if (activeOwners.length === 1) {
+      const income = ownerIncomeMap.get(activeOwners[0]);
+      if (Number.isFinite(income)) return income;
+    }
+
+    // Når flere eiere er valgt eller vi ikke har en spesifikk inntekt å vise,
+    // bruker vi husholdningens samlede inntekt for å unngå dobbeltsummering.
+    return householdIncome;
+  }, [activeOwners, householdIncome, ownerIncomeMap]);
   const hasIncomeValue = typeof activeIncome === 'number' && Number.isFinite(activeIncome);
   const contributionAdjustedTotalPerMonth = totalPerMonth + activeSharedContributionTotal;
   const contributionAdjustedFullTotalPerMonth = fullTotalPerMonth + activeSharedContributionTotal;
@@ -640,8 +647,8 @@ const FixedExpensesPage = () => {
     return ownerDescription;
   }, [activeOwners, activeAccounts, hasAccountFilter]);
   const incomeSourceDescription = bankModeEnabled
-    ? activeOwners.length
-      ? `${activeOwners.join(', ')} sin netto inntekt`
+    ? activeOwners.length === 1
+      ? `${activeOwners[0]} sin netto inntekt`
       : 'bidraget til felleskonto'
     : activeOwners.length
     ? `${activeOwners.join(', ')} sin samlede netto inntekt`
