@@ -227,27 +227,57 @@ const SettingsPage = () => {
     <div className="settings-page">
       <div className="section-header">
         <h2>Innstillinger</h2>
+        <p className="muted">Administrer sikkerhetskopier, importer data og oppdater personoppsettet på ett sted.</p>
       </div>
-      <div className="card-grid">
-        <div className="card">
-          <h3>Sikkerhetskopi</h3>
-          <p>Last ned hele databasen som JSON.</p>
-          <button onClick={handleExport}>Eksporter nå</button>
-          {exportData && (
-            <pre style={{ whiteSpace: 'pre-wrap', marginTop: '1rem' }}>{JSON.stringify(exportData, null, 2)}</pre>
-          )}
-        </div>
+      <div className="card-grid settings-stack">
+        <section className="card settings-card">
+          <div className="settings-card-header">
+            <div>
+              <p className="eyebrow">Datahåndtering</p>
+              <h3>Eksport og import</h3>
+              <p className="muted">Ta sikkerhetskopi eller gjenopprett budsjettet ditt uten å forlate siden.</p>
+            </div>
+            {status && <p className="settings-status-inline">{status}</p>}
+          </div>
+          <div className="settings-subgrid">
+            <div className="settings-tile">
+              <div>
+                <h4>Sikkerhetskopi</h4>
+                <p className="muted">Last ned hele databasen som JSON.</p>
+              </div>
+              <div className="settings-actions">
+                <button onClick={handleExport}>Eksporter nå</button>
+              </div>
+              {exportData && (
+                <pre className="export-preview">{JSON.stringify(exportData, null, 2)}</pre>
+              )}
+            </div>
+            <div className="settings-tile">
+              <div>
+                <h4>Import</h4>
+                <p className="muted">Importer en tidligere eksport. Dette overskriver eksisterende data.</p>
+              </div>
+              <div className="settings-actions">
+                <input type="file" ref={fileRef} accept="application/json" />
+                <button onClick={handleImport}>Importer</button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <div className="card">
-          <h3>Import</h3>
-          <p>Importer en tidligere eksport. Dette overskriver eksisterende data.</p>
-          <input type="file" ref={fileRef} accept="application/json" />
-          <button onClick={handleImport}>Importer</button>
-        </div>
+        <section className="card owner-income-card settings-card">
+          <div className="settings-card-header">
+            <div>
+              <p className="eyebrow">Personoppsett</p>
+              <h3>Personer og netto inntekt</h3>
+              <p className="muted">Navn fra faste utgifter dukker opp automatisk. Legg inn beløp per måned per person.</p>
+            </div>
+            {ownerStatus && (
+              <p className="settings-status-inline success">{ownerStatus}</p>
+            )}
+            {ownerError && <p className="settings-status-inline error-text">{ownerError}</p>}
+          </div>
 
-        <div className="card owner-income-card">
-          <h3>Personer og netto inntekt</h3>
-          <p>Navn fra faste utgifter dukker opp automatisk. Legg inn beløp per måned per person.</p>
           {ownersLoading && <p className="muted">Laster personer…</p>}
           {!ownersLoading && ownerNames.length === 0 && (
             <p className="muted">Ingen personer funnet ennå. Legg til en ny person nedenfor.</p>
@@ -270,7 +300,7 @@ const SettingsPage = () => {
           )}
           {ownerNames.length > 0 && (
             <div className="default-owner-selector">
-              <p style={{ marginTop: '1rem' }}>
+              <p className="muted">
                 Velg hvilke tagger/navn som skal være standard for Faste utgifter. Du kan markere flere.
               </p>
               <div className="owner-default-list">
@@ -279,7 +309,7 @@ const SettingsPage = () => {
                   return (
                     <div key={`${name}-default`} className="owner-default-row">
                       <span>{name}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div className="owner-default-actions">
                         <button
                           type="button"
                           className="secondary"
@@ -331,16 +361,9 @@ const SettingsPage = () => {
           >
             {isSavingOwners ? 'Lagrer…' : 'Lagre personlige inntekter'}
           </button>
-          {ownerStatus && (
-            <p className="muted" style={{ marginTop: '0.75rem', color: '#16a34a' }}>
-              {ownerStatus}
-            </p>
-          )}
-          {ownerError && <p className="error-text">{ownerError}</p>}
-        </div>
+        </section>
       </div>
 
-      {status && <p className="settings-status">{status}</p>}
     </div>
   );
 };
