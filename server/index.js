@@ -388,7 +388,7 @@ app.get('/api/dashboard', (req, res) => {
   }, {});
 
   const fixedCategoryTotalsMap = {};
-  fixedExpenses.forEach((expense) => {
+  filteredFixedExpenses.forEach((expense) => {
     const key = expense.category || 'Annet';
     if (!fixedCategoryTotalsMap[key]) fixedCategoryTotalsMap[key] = 0;
     fixedCategoryTotalsMap[key] += expense.amountPerMonth || 0;
@@ -402,7 +402,7 @@ app.get('/api/dashboard', (req, res) => {
     .sort((a, b) => b.total - a.total);
 
   const fixedLevelTotalsMap = {};
-  fixedExpenses.forEach((expense) => {
+  filteredFixedExpenses.forEach((expense) => {
     const key = expense.level || 'Må-ha';
     if (!fixedLevelTotalsMap[key]) fixedLevelTotalsMap[key] = 0;
     fixedLevelTotalsMap[key] += expense.amountPerMonth || 0;
@@ -413,7 +413,7 @@ app.get('/api/dashboard', (req, res) => {
 
   const now = Date.now();
   const ninetyDays = 90 * 24 * 60 * 60 * 1000;
-  const bindingExpirations = fixedExpenses
+  const bindingExpirations = filteredFixedExpenses
     .filter((expense) => expense.bindingEndDate)
     .map((expense) => {
       const bindingTime = new Date(expense.bindingEndDate).getTime();
