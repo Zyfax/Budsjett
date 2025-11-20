@@ -576,8 +576,10 @@ const FixedExpensesPage = () => {
     const map = new Map();
     ownerProfiles.forEach((profile) => {
       if (!profile?.name) return;
+      const personalIncome = Number(profile.monthlyNetIncome);
+      const sharedContribution = Number(profile.sharedContribution);
       const value = usePersonalIncomeForOwners
-        ? Number(profile.monthlyNetIncome)
+        ? personalIncome - (Number.isFinite(sharedContribution) ? sharedContribution : 0)
         : bankModeEnabled
         ? Number(profile.sharedContribution)
         : Number(profile.monthlyNetIncome);
