@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { api } from './api.js';
-import DashboardPage from './pages/DashboardPage.jsx';
 import SavingsGoalsPage from './pages/SavingsGoalsPage.jsx';
 import CategoriesPage from './pages/CategoriesPage.jsx';
 import PagesPage from './pages/PagesPage.jsx';
@@ -166,9 +165,6 @@ const App = () => {
             </button>
           )}
           <div className="nav-links">
-            <NavLink to="/" end>
-              Oversikt
-            </NavLink>
             <NavLink to="/faste-utgifter">Faste utgifter</NavLink>
             <NavLink to="/sparemal">Sparemål</NavLink>
             <NavLink to="/categories">Kategorier</NavLink>
@@ -181,7 +177,7 @@ const App = () => {
       </nav>
       <main>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/" element={<Navigate to="/faste-utgifter" replace />} />
           <Route path="/faste-utgifter" element={<FixedExpensesPage />} />
           <Route path="/sparemal" element={<SavingsGoalsPage />} />
           <Route path="/categories" element={<CategoriesPage />} />
