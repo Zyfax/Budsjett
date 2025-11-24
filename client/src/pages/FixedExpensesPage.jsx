@@ -127,6 +127,7 @@ const FixedExpensesPage = () => {
   const [priceErrors, setPriceErrors] = useState({});
   const [isUpdatingPriceId, setIsUpdatingPriceId] = useState(null);
   const [isResettingPriceId, setIsResettingPriceId] = useState(null);
+  const [expandedExpenseIds, setExpandedExpenseIds] = useState([]);
   const [expandedPriceIds, setExpandedPriceIds] = useState([]);
   const [customOwnerInput, setCustomOwnerInput] = useState('');
   const [bankModeEnabled, setBankModeEnabled] = useState(false);
@@ -827,6 +828,16 @@ const FixedExpensesPage = () => {
     setExpandedPriceIds((current) => (current.includes(id) ? current : [...current, id]));
   }, []);
 
+  const handleToggleExpense = useCallback((id) => {
+    setExpandedExpenseIds((current) => {
+      if (current.includes(id)) {
+        setExpandedPriceIds((prices) => prices.filter((priceId) => priceId !== id));
+        return current.filter((item) => item !== id);
+      }
+      return [...current, id];
+    });
+  }, []);
+
   const handleTogglePriceSection = useCallback((id) => {
     setExpandedPriceIds((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
@@ -1160,107 +1171,125 @@ const FixedExpensesPage = () => {
                 <div className="category-expense-list">
                   {group.items.map((expense) => {
                     const isPriceSectionOpen = expandedPriceIds.includes(expense.id);
+                    const isExpanded = expandedExpenseIds.includes(expense.id);
                     return (
-                      <article className="expense-entry" key={expense.id}>
-                        <div className="expense-entry-top">
-                          <div className="expense-entry-main">
+                      <article className={`expense-entry${isExpanded ? ' expanded' : ''}`} key={expense.id}>
+                        <button
+                          type="button"
+                          className="expense-row"
+                          onClick={() => handleToggleExpense(expense.id)}
+                          aria-expanded={isExpanded}
+                          aria-controls={`expense-details-${expense.id}`}
+                        >
+                          <div className="expense-row-main">
                             <p className="expense-name">{expense.name}</p>
-                            {expense.startDate && (
-                              <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
-                            )}
-                            <div className="expense-meta">
-                              <span className="badge">{expense.level}</span>
-                              <span className="muted">Binding: {formatDate(expense.bindingEndDate)}</span>
-                              <span className="muted">Oppsigelse: {formatNotice(expense.noticePeriodMonths)}</span>
-                            </div>
-                            <div className="expense-owners">
-                              {(expense.owners || []).length === 0 ? (
-                                <span className="muted">Ingen eiere</span>
-                              ) : (
-                                <div className="chip-list">
-                                  {(expense.owners || []).map((owner) => (
-                                    <button
-                                      type="button"
-                                      className={`chip chip-button${activeOwners.includes(owner) ? ' chip-active' : ''}`}
-                                      key={owner}
-                                      onClick={() => handleToggleOwnerFilter(owner)}
-                                    >
-                                      {owner}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            {expense.account && (
-                              <p className="muted subtle-label">Betales fra: {expense.account}</p>
-                            )}
-                            {expense.note && <p className="expense-note">{expense.note}</p>}
                           </div>
-                          <div className="expense-amount">
+                          <div className="expense-row-amount">
                             <span className="muted subtle-label">Per måned</span>
                             <strong>{formatCurrency(expense.amountPerMonth)}</strong>
                           </div>
-                        </div>
-                        {isPriceSectionOpen && (
-                          <div className="price-adjustment">
-                            <div className="price-adjustment-header">
-                              <div>
-                                <label className="muted subtle-label" htmlFor={`new-price-${expense.id}`}>
-                                  Ny pris
-                                </label>
-                                <p className="price-adjustment-title">Oppdater pris og historikk</p>
+                          <span className={`chevron${isExpanded ? ' open' : ''}`} aria-hidden />
+                        </button>
+                        {isExpanded && (
+                          <div className="expense-details" id={`expense-details-${expense.id}`}>
+                            <div className="expense-detail-header">
+                              <div className="expense-entry-main">
+                                {expense.startDate && (
+                                  <small className="muted subtle-label">Startet {formatDate(expense.startDate)}</small>
+                                )}
+                                <div className="expense-meta">
+                                  <span className="badge">{expense.level}</span>
+                                  <span className="muted">Binding: {formatDate(expense.bindingEndDate)}</span>
+                                  <span className="muted">Oppsigelse: {formatNotice(expense.noticePeriodMonths)}</span>
+                                </div>
+                                <div className="expense-owners">
+                                  {(expense.owners || []).length === 0 ? (
+                                    <span className="muted">Ingen eiere</span>
+                                  ) : (
+                                    <div className="chip-list">
+                                      {(expense.owners || []).map((owner) => (
+                                        <button
+                                          type="button"
+                                          className={`chip chip-button${
+                                            activeOwners.includes(owner) ? ' chip-active' : ''
+                                          }`}
+                                          key={owner}
+                                          onClick={() => handleToggleOwnerFilter(owner)}
+                                        >
+                                          {owner}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                {expense.account && (
+                                  <p className="muted subtle-label">Betales fra: {expense.account}</p>
+                                )}
+                                {expense.note && <p className="expense-note">{expense.note}</p>}
                               </div>
-                              <div className="price-adjustment-meta">
-                                <span className="muted subtle-label">Siste registrerte</span>
-                                <strong>{formatCurrency(expense.amountPerMonth)}</strong>
+                              <div className="expense-actions">
+                                <button
+                                  type="button"
+                                  className={`icon-button price-toggle${isPriceSectionOpen ? ' active' : ''}`}
+                                  aria-expanded={isPriceSectionOpen}
+                                  onClick={() => handleTogglePriceSection(expense.id)}
+                                >
+                                  {isPriceSectionOpen ? 'Pris & historikk' : 'Ny pris'}
+                                </button>
+                                <button className="secondary" onClick={() => setSimulatedExpense(expense)}>
+                                  Simuler oppsigelse
+                                </button>
+                                <button className="secondary" onClick={() => handleOpenForm(expense)}>
+                                  Rediger
+                                </button>
+                                <button onClick={() => handleDelete(expense.id)}>Slett</button>
                               </div>
                             </div>
-                            <div className="inline-form">
-                              <input
-                                id={`new-price-${expense.id}`}
-                                type="number"
-                                min="0"
-                                step="1"
-                                placeholder="Oppgi ny pris"
-                                value={priceInputs[expense.id] ?? ''}
-                                onChange={(event) => handleNewPriceChange(expense.id, event.target.value)}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleSubmitNewPrice(expense)}
-                                disabled={isUpdatingPriceId === expense.id}
-                              >
-                                {isUpdatingPriceId === expense.id ? 'Lagrer…' : 'Oppdater pris'}
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary"
-                                onClick={() => handleResetPriceHistory(expense)}
-                                disabled={isResettingPriceId === expense.id}
-                              >
-                                {isResettingPriceId === expense.id ? 'Resetter…' : 'Tilbakestill historikk'}
-                              </button>
-                            </div>
-                            {priceErrors[expense.id] && <p className="error-text">{priceErrors[expense.id]}</p>}
+                            {isPriceSectionOpen && (
+                              <div className="price-adjustment">
+                                <div className="price-adjustment-header">
+                                  <div>
+                                    <label className="muted subtle-label" htmlFor={`new-price-${expense.id}`}>
+                                      Ny pris
+                                    </label>
+                                    <p className="price-adjustment-title">Oppdater pris og historikk</p>
+                                  </div>
+                                  <div className="price-adjustment-meta">
+                                    <span className="muted subtle-label">Siste registrerte</span>
+                                    <strong>{formatCurrency(expense.amountPerMonth)}</strong>
+                                  </div>
+                                </div>
+                                <div className="inline-form">
+                                  <input
+                                    id={`new-price-${expense.id}`}
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="Oppgi ny pris"
+                                    value={priceInputs[expense.id] ?? ''}
+                                    onChange={(event) => handleNewPriceChange(expense.id, event.target.value)}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSubmitNewPrice(expense)}
+                                    disabled={isUpdatingPriceId === expense.id}
+                                  >
+                                    {isUpdatingPriceId === expense.id ? 'Lagrer…' : 'Oppdater pris'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary"
+                                    onClick={() => handleResetPriceHistory(expense)}
+                                    disabled={isResettingPriceId === expense.id}
+                                  >
+                                    {isResettingPriceId === expense.id ? 'Resetter…' : 'Tilbakestill historikk'}
+                                  </button>
+                                </div>
+                                {priceErrors[expense.id] && <p className="error-text">{priceErrors[expense.id]}</p>}
+                              </div>
+                            )}
                           </div>
                         )}
-                        <div className="expense-actions">
-                          <button
-                            type="button"
-                            className={`icon-button price-toggle${isPriceSectionOpen ? ' active' : ''}`}
-                            aria-expanded={isPriceSectionOpen}
-                            onClick={() => handleTogglePriceSection(expense.id)}
-                          >
-                            {isPriceSectionOpen ? 'Pris & historikk' : 'Ny pris'}
-                          </button>
-                          <button className="secondary" onClick={() => setSimulatedExpense(expense)}>
-                            Simuler oppsigelse
-                          </button>
-                          <button className="secondary" onClick={() => handleOpenForm(expense)}>
-                            Rediger
-                          </button>
-                          <button onClick={() => handleDelete(expense.id)}>Slett</button>
-                        </div>
                       </article>
                     );
                   })}
