@@ -5,6 +5,8 @@ const SettingsPage = () => {
   const fileRef = useRef(null);
   const ownerAutoSaveTimeout = useRef(null);
   const bankAutoSaveTimeout = useRef(null);
+  const lastSavedOwnerInputs = useRef({});
+  const lastSavedBankAccounts = useRef([]);
   const [exportData, setExportData] = useState(null);
   const [status, setStatus] = useState('');
   const [ownerInputs, setOwnerInputs] = useState({});
@@ -66,6 +68,7 @@ const SettingsPage = () => {
           }
         });
         setOwnerInputs(normalized);
+        lastSavedOwnerInputs.current = normalized;
         const defaults = Array.isArray(data.defaultFixedExpensesOwners)
           ? data.defaultFixedExpensesOwners
           : typeof data.defaultFixedExpensesOwner === 'string' && data.defaultFixedExpensesOwner.trim()
@@ -82,6 +85,7 @@ const SettingsPage = () => {
         const accounts = Array.isArray(data.bankAccounts) ? data.bankAccounts : [];
         setBankAccounts(accounts);
         setBankAccountsDraft(accounts);
+        lastSavedBankAccounts.current = accounts;
         setSettingsReady(true);
       } catch (err) {
         if (!isMounted) return;
@@ -178,6 +182,7 @@ const SettingsPage = () => {
         }
       });
       setOwnerInputs(refreshed);
+      lastSavedOwnerInputs.current = refreshed;
     }
 
     if (Array.isArray(payload.defaultFixedExpensesOwners)) {
@@ -202,6 +207,7 @@ const SettingsPage = () => {
     if (Array.isArray(payload.bankAccounts)) {
       setBankAccounts(payload.bankAccounts);
       setBankAccountsDraft(payload.bankAccounts);
+      lastSavedBankAccounts.current = payload.bankAccounts;
       syncOwnerBankContributions(payload.bankAccounts);
     }
   };
@@ -278,6 +284,7 @@ const SettingsPage = () => {
       const nextAccounts = Array.isArray(updated.bankAccounts) ? updated.bankAccounts : sanitized;
       setBankAccounts(nextAccounts);
       setBankAccountsDraft(nextAccounts);
+      lastSavedBankAccounts.current = nextAccounts;
       syncOwnerBankContributions(nextAccounts);
       setBankAccountStatus('Endringene ble lagret automatisk.');
     } catch (err) {
@@ -457,6 +464,7 @@ const SettingsPage = () => {
         });
       const updated = await api.updateSettings({ ownerProfiles: payload });
       syncOwnersFromPayload(updated);
+      lastSavedOwnerInputs.current = ownerInputs;
       setOwnerStatus('Endringene ble lagret automatisk.');
     } catch (err) {
       setOwnerError(err.message || 'Kunne ikke lagre inntekter.');
@@ -734,6 +742,9 @@ const SettingsPage = () => {
 
   useEffect(() => {
     if (!settingsReady) return undefined;
+    const hasBankAccountChanges =
+      JSON.stringify(bankAccountsDraft) !== JSON.stringify(lastSavedBankAccounts.current);
+    if (!hasBankAccountChanges) return undefined;
     if (bankAutoSaveTimeout.current) {
       clearTimeout(bankAutoSaveTimeout.current);
     }
@@ -749,6 +760,9 @@ const SettingsPage = () => {
 
   useEffect(() => {
     if (!settingsReady) return undefined;
+    const hasOwnerChanges =
+      JSON.stringify(ownerInputs) !== JSON.stringify(lastSavedOwnerInputs.current);
+    if (!hasOwnerChanges) return undefined;
     if (ownerAutoSaveTimeout.current) {
       clearTimeout(ownerAutoSaveTimeout.current);
     }
