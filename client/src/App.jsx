@@ -24,6 +24,8 @@ const App = () => {
   const [lockState, setLockState] = useState({ loading: true, enabled: false, unlocked: true });
   const [lockError, setLockError] = useState('');
   const [lockPassword, setLockPassword] = useState('');
+  const [lockUsers, setLockUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState('');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -38,6 +40,10 @@ const App = () => {
         enabled: Boolean(status.enabled),
         unlocked: Boolean(status.unlocked)
       });
+      setLockUsers(Array.isArray(status.users) ? status.users : []);
+      if (status.currentUser?.id) {
+        setSelectedUser(status.currentUser.id === 'admin' ? '' : status.currentUser.name || '');
+      }
       setLockError('');
     } catch (err) {
       setLockState({ loading: false, enabled: true, unlocked: false });
@@ -106,7 +112,7 @@ const App = () => {
     event.preventDefault();
     setLockError('');
     try {
-      await api.unlock(lockPassword);
+      await api.unlock(lockPassword, selectedUser);
       setLockPassword('');
       await refreshLockStatus();
     } catch (err) {
@@ -132,6 +138,25 @@ const App = () => {
           <h1>Familiebudsjett</h1>
           <p className="muted">Siden er låst. Oppgi passordet for å gå videre.</p>
           <form className="lock-form" onSubmit={handleUnlock}>
+            {lockUsers.length > 0 && (
+              <>
+                <label className="muted" htmlFor="lock-user">
+                  Hvem logger inn?
+                </label>
+                <select
+                  id="lock-user"
+                  value={selectedUser}
+                  onChange={(e) => setSelectedUser(e.target.value)}
+                >
+                  <option value="">Administrasjon</option>
+                  {lockUsers.map((user) => (
+                    <option key={user.id} value={user.name}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <label htmlFor="lock-password">Passord</label>
             <input
               id="lock-password"

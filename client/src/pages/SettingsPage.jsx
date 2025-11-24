@@ -50,6 +50,15 @@ const SettingsPage = () => {
   const [editedBankAccountName, setEditedBankAccountName] = useState('');
   const [bankAccountActionLoading, setBankAccountActionLoading] = useState('');
   const [settingsReady, setSettingsReady] = useState(false);
+  const [sharedUsers, setSharedUsers] = useState([]);
+  const [sharingStatus, setSharingStatus] = useState('');
+  const [sharingError, setSharingError] = useState('');
+  const [newSharedUserName, setNewSharedUserName] = useState('');
+  const [newSharedUserPassword, setNewSharedUserPassword] = useState('');
+  const [editingSharedUserId, setEditingSharedUserId] = useState('');
+  const [editingSharedUserName, setEditingSharedUserName] = useState('');
+  const [editingSharedUserPassword, setEditingSharedUserPassword] = useState('');
+  const [isSavingSharedUser, setIsSavingSharedUser] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -127,6 +136,23 @@ const SettingsPage = () => {
       isMounted = false;
     };
   }, []);
+
+  const loadSharedUsers = useCallback(async () => {
+    try {
+      const data = await api.getSharedUsers();
+      setSharedUsers(Array.isArray(data.users) ? data.users : []);
+      setSharingError('');
+    } catch (err) {
+      setSharingError(
+        err.message ||
+          'Kunne ikke hente delte brukere. Sjekk at du er logget inn som administrator først.'
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSharedUsers();
+  }, [loadSharedUsers]);
 
   const ownerNames = useMemo(() => {
     const names = new Set();
@@ -740,6 +766,79 @@ const SettingsPage = () => {
     }
   };
 
+  const handleCreateSharedUser = async () => {
+    setSharingStatus('');
+    setSharingError('');
+    setIsSavingSharedUser(true);
+    try {
+      const payload = { name: newSharedUserName.trim(), password: newSharedUserPassword.trim() };
+      const data = await api.createSharedUser(payload);
+      setSharedUsers(Array.isArray(data.users) ? data.users : []);
+      setNewSharedUserName('');
+      setNewSharedUserPassword('');
+      setSharingStatus('Ny bruker er klar til å logge inn.');
+    } catch (err) {
+      setSharingError(err.message || 'Kunne ikke opprette brukeren.');
+    } finally {
+      setIsSavingSharedUser(false);
+    }
+  };
+
+  const startEditingSharedUser = (user) => {
+    setEditingSharedUserId(user.id);
+    setEditingSharedUserName(user.name);
+    setEditingSharedUserPassword('');
+    setSharingStatus('');
+    setSharingError('');
+  };
+
+  const cancelEditingSharedUser = () => {
+    setEditingSharedUserId('');
+    setEditingSharedUserName('');
+    setEditingSharedUserPassword('');
+  };
+
+  const handleUpdateSharedUser = async () => {
+    if (!editingSharedUserId) return;
+    setIsSavingSharedUser(true);
+    setSharingStatus('');
+    setSharingError('');
+    try {
+      const payload = { name: editingSharedUserName.trim() };
+      if (editingSharedUserPassword.trim()) {
+        payload.password = editingSharedUserPassword.trim();
+      }
+      const data = await api.updateSharedUser(editingSharedUserId, payload);
+      setSharedUsers(Array.isArray(data.users) ? data.users : []);
+      setSharingStatus('Brukeren ble oppdatert.');
+      cancelEditingSharedUser();
+    } catch (err) {
+      setSharingError(err.message || 'Kunne ikke oppdatere brukeren.');
+    } finally {
+      setIsSavingSharedUser(false);
+    }
+  };
+
+  const handleDeleteSharedUser = async (user) => {
+    if (!user?.id) return;
+    if (!window.confirm(`Vil du fjerne tilgang for ${user.name}?`)) return;
+    setIsSavingSharedUser(true);
+    setSharingStatus('');
+    setSharingError('');
+    try {
+      const data = await api.deleteSharedUser(user.id);
+      setSharedUsers(Array.isArray(data.users) ? data.users : []);
+      setSharingStatus('Brukeren ble fjernet.');
+      if (editingSharedUserId === user.id) {
+        cancelEditingSharedUser();
+      }
+    } catch (err) {
+      setSharingError(err.message || 'Kunne ikke slette brukeren.');
+    } finally {
+      setIsSavingSharedUser(false);
+    }
+  };
+
   useEffect(() => {
     if (!settingsReady) return undefined;
     const hasBankAccountChanges =
@@ -916,6 +1015,119 @@ const SettingsPage = () => {
                 >
                   Skru av lås
                 </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card settings-card">
+          <div className="settings-card-header">
+            <div>
+              <p className="eyebrow">Deling</p>
+              <h3>Gi familie og venner egne innlogginger</h3>
+              <p className="muted">
+                Opprett personlige brukere med egne passord. De kan låse opp siden selv, men bare du
+                som administrator kan endre eller slette tilgangene.
+              </p>
+            </div>
+            {sharingStatus && <p className="settings-status-inline success">{sharingStatus}</p>}
+            {sharingError && <p className="settings-status-inline error-text">{sharingError}</p>}
+          </div>
+          <div className="settings-subgrid">
+            <div className="settings-tile">
+              <div>
+                <h4>Eksisterende brukere</h4>
+                <p className="muted">
+                  Brukerne nedenfor kan logge seg inn fra startskjermen. Logg inn som administrator
+                  for å endre dem.
+                </p>
+                <div className="chip-row" style={{ marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                  {sharedUsers.length === 0 && <span className="muted">Ingen delte brukere ennå.</span>}
+                  {sharedUsers.map((user) => (
+                    <span key={user.id} className="chip" style={{ display: 'flex', gap: '0.5rem' }}>
+                      <span>{user.name}</span>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => startEditingSharedUser(user)}
+                        disabled={isSavingSharedUser}
+                      >
+                        Endre
+                      </button>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => handleDeleteSharedUser(user)}
+                        disabled={isSavingSharedUser}
+                      >
+                        Fjern
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="settings-tile">
+              <div>
+                <h4>{editingSharedUserId ? 'Oppdater bruker' : 'Legg til ny bruker'}</h4>
+                <p className="muted">
+                  Velg et tydelig navn og et passord på minst seks tegn. Bytter du passord for en
+                  bruker som har glemt det, kan du oppdatere det her.
+                </p>
+              </div>
+              <div className="settings-actions" style={{ gap: '0.5rem', width: '100%' }}>
+                <label className="muted" htmlFor="shared-user-name">
+                  Navn
+                </label>
+                <input
+                  id="shared-user-name"
+                  type="text"
+                  placeholder="F.eks. Ola eller Familie"
+                  value={editingSharedUserId ? editingSharedUserName : newSharedUserName}
+                  onChange={(e) =>
+                    editingSharedUserId
+                      ? setEditingSharedUserName(e.target.value)
+                      : setNewSharedUserName(e.target.value)
+                  }
+                />
+                <label className="muted" htmlFor="shared-user-password">
+                  {editingSharedUserId ? 'Nytt passord (valgfritt)' : 'Passord'}
+                </label>
+                <input
+                  id="shared-user-password"
+                  type="password"
+                  placeholder={editingSharedUserId ? 'La stå tom for å beholde' : 'Minst seks tegn'}
+                  value={editingSharedUserId ? editingSharedUserPassword : newSharedUserPassword}
+                  onChange={(e) =>
+                    editingSharedUserId
+                      ? setEditingSharedUserPassword(e.target.value)
+                      : setNewSharedUserPassword(e.target.value)
+                  }
+                />
+                <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                  <button
+                    type="button"
+                    onClick={editingSharedUserId ? handleUpdateSharedUser : handleCreateSharedUser}
+                    disabled={isSavingSharedUser}
+                    style={{ flex: '1 1 auto' }}
+                  >
+                    {isSavingSharedUser
+                      ? 'Lagrer…'
+                      : editingSharedUserId
+                      ? 'Oppdater bruker'
+                      : 'Legg til bruker'}
+                  </button>
+                  {editingSharedUserId && (
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={cancelEditingSharedUser}
+                      disabled={isSavingSharedUser}
+                    >
+                      Avbryt
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

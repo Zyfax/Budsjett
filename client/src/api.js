@@ -52,7 +52,15 @@ export const api = {
   deleteOwner: (name) => request('/owners/delete', { method: 'POST', body: JSON.stringify({ name }) }),
 
   getLockStatus: () => request('/lock/status'),
-  unlock: (password) => request('/lock/unlock', { method: 'POST', body: JSON.stringify({ password }) }),
+  unlock: (password, userName = '') =>
+    request('/lock/unlock', { method: 'POST', body: JSON.stringify({ password, userName }) }),
+  getLockUsers: () => request('/lock/users'),
+
+  getSharedUsers: () => request('/sharing/users'),
+  createSharedUser: (payload) => request('/sharing/users', { method: 'POST', body: JSON.stringify(payload) }),
+  updateSharedUser: (id, payload) =>
+    request(`/sharing/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteSharedUser: (id) => request(`/sharing/users/${id}`, { method: 'DELETE' }),
 
   exportData: () => request('/export'),
   importData: (payload) => request('/import', { method: 'POST', body: JSON.stringify(payload) })

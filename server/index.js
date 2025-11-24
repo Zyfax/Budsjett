@@ -11,6 +11,7 @@ const FIXED_EXPENSE_LEVELS = ['Må-ha', 'Kjekt å ha', 'Luksus'];
 const app = express();
 const PORT = process.env.PORT || 4173;
 const LOCK_COOKIE_NAME = 'budsjett_lock';
+const USER_COOKIE_NAME = 'budsjett_user';
 const LOCK_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const activeLockTokens = new Map();
 
@@ -20,10 +21,15 @@ app.use(express.json({ limit: '5mb' }));
 const hashLockPassword = (password, salt) =>
   crypto.scryptSync(String(password), String(salt), 64).toString('hex');
 
+const hashUserPassword = hashLockPassword;
+
 const sanitizeSettings = (settings) => {
-  const { lockHash, lockSalt, ...rest } = settings;
+  const { lockHash, lockSalt, sharedUsers = [], ...rest } = settings;
   const lockEnabled = Boolean(settings.lockEnabled && settings.lockHash && settings.lockSalt);
-  return { ...rest, lockEnabled };
+  const safeUsers = sharedUsers
+    .filter((user) => user && typeof user.name === 'string')
+    .map((user) => ({ id: user.id, name: user.name }));
+  return { ...rest, lockEnabled, sharedUsers: safeUsers };
 };
 
 const isLockEnabled = () => {
@@ -43,6 +49,27 @@ const verifyLockPassword = (password) => {
   }
 };
 
+const verifySharedUserPassword = (identifier, password) => {
+  if (!identifier || !password) return null;
+  const normalized = String(identifier).trim().toLowerCase();
+  const settings = db.getSettings();
+  const target = (settings.sharedUsers || []).find(
+    (user) =>
+      user &&
+      ((user.id && String(user.id).toLowerCase() === normalized) ||
+        (user.name && user.name.toLowerCase() === normalized))
+  );
+  if (!target || !target.salt || !target.hash) return null;
+  try {
+    const hashed = hashUserPassword(password, target.salt);
+    const matches = crypto.timingSafeEqual(Buffer.from(hashed, 'hex'), Buffer.from(target.hash, 'hex'));
+    if (!matches) return null;
+    return { id: target.id, name: target.name };
+  } catch (err) {
+    return null;
+  }
+};
+
 const getCookies = (req) => {
   const header = req.headers.cookie;
   if (!header) return {};
@@ -58,23 +85,35 @@ const readLockToken = (req) => {
   return req.headers['x-budsjett-lock'] || cookies[LOCK_COOKIE_NAME] || '';
 };
 
+const getActiveUser = (req) => {
+  const token = readLockToken(req);
+  const meta = activeLockTokens.get(token);
+  if (!meta || Date.now() > meta.expires) return null;
+  return meta.user || null;
+};
+
 const isValidLockToken = (token) => {
   if (!token) return false;
-  const expires = activeLockTokens.get(token);
-  if (!expires) return false;
-  if (Date.now() > expires) {
+  const meta = activeLockTokens.get(token);
+  if (!meta) return false;
+  if (Date.now() > meta.expires) {
     activeLockTokens.delete(token);
     return false;
   }
   return true;
 };
 
-const issueLockToken = (res) => {
+const issueLockToken = (res, user = null) => {
   const token = nanoid(32);
   const expires = Date.now() + LOCK_TOKEN_TTL_MS;
-  activeLockTokens.set(token, expires);
+  activeLockTokens.set(token, { expires, user });
   res.cookie(LOCK_COOKIE_NAME, token, {
     httpOnly: true,
+    sameSite: 'lax',
+    maxAge: LOCK_TOKEN_TTL_MS
+  });
+  res.cookie(USER_COOKIE_NAME, user?.name || '', {
+    httpOnly: false,
     sameSite: 'lax',
     maxAge: LOCK_TOKEN_TTL_MS
   });
@@ -83,6 +122,15 @@ const issueLockToken = (res) => {
 
 const invalidateLockTokens = () => {
   activeLockTokens.clear();
+};
+
+const invalidateLockTokensForUser = (userId) => {
+  if (!userId) return;
+  for (const [token, meta] of activeLockTokens.entries()) {
+    if (meta.user && meta.user.id === userId) {
+      activeLockTokens.delete(token);
+    }
+  }
 };
 
 app.use((req, res, next) => {
@@ -124,20 +172,103 @@ const normalizeName = (value) => (typeof value === 'string' ? value.trim() : '')
 
 app.get('/api/lock/status', (req, res) => {
   const enabled = isLockEnabled();
-  const unlocked = !enabled || isValidLockToken(readLockToken(req));
-  res.json({ enabled, unlocked });
+  const token = readLockToken(req);
+  const unlocked = !enabled || isValidLockToken(token);
+  const settings = db.getSettings();
+  const users = (settings.sharedUsers || [])
+    .filter((user) => user && typeof user.name === 'string')
+    .map((user) => ({ id: user.id, name: user.name }));
+  const currentUser = unlocked ? getActiveUser(req) : null;
+  res.json({ enabled, unlocked, users, currentUser });
 });
 
 app.post('/api/lock/unlock', (req, res) => {
-  const { password } = req.body || {};
+  const { password, userName } = req.body || {};
   if (!isLockEnabled()) {
     return res.status(400).json({ error: 'Låsen er ikke aktivert.' });
   }
-  if (!verifyLockPassword(password)) {
+
+  const sharedUser = verifySharedUserPassword(userName, password);
+  if (!sharedUser && !verifyLockPassword(password)) {
     return res.status(401).json({ error: 'Feil passord.' });
   }
-  issueLockToken(res);
-  res.json({ unlocked: true });
+
+  const user = sharedUser || { id: 'admin', name: 'Admin' };
+  issueLockToken(res, user);
+  res.json({ unlocked: true, user });
+});
+
+app.get('/api/lock/users', (req, res) => {
+  const settings = db.getSettings();
+  const users = (settings.sharedUsers || [])
+    .filter((user) => user && typeof user.name === 'string')
+    .map((user) => ({ id: user.id, name: user.name }));
+  res.json({ users });
+});
+
+app.get('/api/sharing/users', (req, res) => {
+  const activeUser = getActiveUser(req);
+  if (isLockEnabled() && (!activeUser || activeUser.id !== 'admin')) {
+    return res.status(403).json({ error: 'Kun administrator kan se delt tilgang.' });
+  }
+  res.json({ users: db.listSharedUsers() });
+});
+
+app.post('/api/sharing/users', (req, res) => {
+  const activeUser = getActiveUser(req);
+  if (isLockEnabled() && (!activeUser || activeUser.id !== 'admin')) {
+    return res.status(403).json({ error: 'Kun administrator kan opprette brukere.' });
+  }
+  const { name, password } = req.body || {};
+  if (!name || !password || String(password).trim().length < 6) {
+    return res
+      .status(400)
+      .json({ error: 'Brukernavn må fylles ut og passordet må være minst 6 tegn.' });
+  }
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = hashUserPassword(password, salt);
+  const user = db.addSharedUser({ id: nanoid(8), name, salt, hash });
+  if (!user) {
+    return res.status(400).json({ error: 'Kunne ikke opprette brukeren. Navnet er kanskje i bruk.' });
+  }
+  res.status(201).json({ user: { id: user.id, name: user.name }, users: db.listSharedUsers() });
+});
+
+app.put('/api/sharing/users/:id', (req, res) => {
+  const activeUser = getActiveUser(req);
+  if (isLockEnabled() && (!activeUser || activeUser.id !== 'admin')) {
+    return res.status(403).json({ error: 'Kun administrator kan oppdatere brukere.' });
+  }
+  const { id } = req.params;
+  const { name, password } = req.body || {};
+  const update = {};
+  if (name !== undefined) update.name = name;
+  if (password !== undefined) {
+    if (String(password).trim().length < 6) {
+      return res.status(400).json({ error: 'Passordet må være minst 6 tegn langt.' });
+    }
+    update.salt = crypto.randomBytes(16).toString('hex');
+    update.hash = hashUserPassword(password, update.salt);
+  }
+  const user = db.updateSharedUser(id, update);
+  if (!user) {
+    return res.status(400).json({ error: 'Kunne ikke oppdatere brukeren. Sjekk navn og passord.' });
+  }
+  res.json({ user: { id: user.id, name: user.name }, users: db.listSharedUsers() });
+});
+
+app.delete('/api/sharing/users/:id', (req, res) => {
+  const activeUser = getActiveUser(req);
+  if (isLockEnabled() && (!activeUser || activeUser.id !== 'admin')) {
+    return res.status(403).json({ error: 'Kun administrator kan slette brukere.' });
+  }
+  const { id } = req.params;
+  const deleted = db.deleteSharedUser(id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Fant ikke brukeren du ville slette.' });
+  }
+  invalidateLockTokensForUser(id);
+  res.json({ deleted: true, users: db.listSharedUsers() });
 });
 
 app.get('/api/categories', (req, res) => {
@@ -394,7 +525,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.put('/api/settings', (req, res) => {
-  const {
+  const {   
     monthlyNetIncome,
     ownerProfiles,
     defaultFixedExpensesOwner,
@@ -408,6 +539,7 @@ app.put('/api/settings', (req, res) => {
   } = req.body || {};
   const update = {};
   const currentlyLocked = isLockEnabled();
+  const activeUser = getActiveUser(req);
   let shouldInvalidateLockSessions = false;
   const currentSettings = db.getSettings();
   const currentBankAccounts = Array.isArray(currentSettings.bankAccounts)
@@ -590,9 +722,10 @@ app.put('/api/settings', (req, res) => {
   if (shouldInvalidateLockSessions) {
     invalidateLockTokens();
     if (sanitizedSettings.lockEnabled) {
-      issueLockToken(res);
+      issueLockToken(res, activeUser);
     } else {
       res.clearCookie(LOCK_COOKIE_NAME);
+      res.clearCookie(USER_COOKIE_NAME);
     }
   }
   res.json(sanitizedSettings);

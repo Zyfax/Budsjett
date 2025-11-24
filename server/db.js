@@ -17,7 +17,8 @@ const DEFAULT_SETTINGS = {
   bankModeEnabled: false,
   lockEnabled: false,
   lockSalt: '',
-  lockHash: ''
+  lockHash: '',
+  sharedUsers: []
 };
 
 const defaultData = {
@@ -133,6 +134,20 @@ class Store {
       if (!this.state.settings.lockEnabled) {
         this.state.settings.lockSalt = '';
         this.state.settings.lockHash = '';
+      }
+
+      if (!Array.isArray(this.state.settings.sharedUsers)) {
+        this.state.settings.sharedUsers = [];
+      } else {
+        this.state.settings.sharedUsers = this.state.settings.sharedUsers
+          .filter((user) => user && typeof user.name === 'string')
+          .map((user) => ({
+            id: user.id || String(user.name),
+            name: user.name.trim(),
+            salt: typeof user.salt === 'string' ? user.salt : '',
+            hash: typeof user.hash === 'string' ? user.hash : ''
+          }))
+          .filter((user) => user.name);
       }
     }
 
@@ -725,6 +740,18 @@ class Store {
       next.lockHash = typeof payload.lockHash === 'string' ? payload.lockHash : '';
     }
 
+    if (Array.isArray(payload.sharedUsers)) {
+      next.sharedUsers = payload.sharedUsers
+        .filter((user) => user && typeof user.name === 'string')
+        .map((user) => ({
+          id: user.id || String(user.name),
+          name: user.name.trim(),
+          salt: typeof user.salt === 'string' ? user.salt : '',
+          hash: typeof user.hash === 'string' ? user.hash : ''
+        }))
+        .filter((user) => user.name);
+    }
+
     this.state.settings = next;
     this.save();
     return this.state.settings;
@@ -909,6 +936,81 @@ class Store {
     };
   }
 
+  listSharedUsers() {
+    return (this.state.settings.sharedUsers || []).map((user) => ({ id: user.id, name: user.name }));
+  }
+
+  findSharedUser(id) {
+    const normalized = typeof id === 'string' ? id.trim() : '';
+    if (!normalized) return null;
+    return (this.state.settings.sharedUsers || []).find((user) => user.id === normalized) || null;
+  }
+
+  findSharedUserByName(name) {
+    const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
+    if (!normalized) return null;
+    return (
+      (this.state.settings.sharedUsers || []).find(
+        (user) => user.name && user.name.toLowerCase() === normalized
+      ) || null
+    );
+  }
+
+  addSharedUser(payload) {
+    if (!payload || typeof payload.name !== 'string') return null;
+    const name = payload.name.trim();
+    if (!name) return null;
+    const duplicate = this.findSharedUserByName(name);
+    if (duplicate) return null;
+    const user = {
+      id: payload.id || name,
+      name,
+      salt: payload.salt || '',
+      hash: payload.hash || ''
+    };
+    this.state.settings.sharedUsers = [...(this.state.settings.sharedUsers || []), user];
+    this.save();
+    return user;
+  }
+
+  updateSharedUser(id, payload) {
+    const existing = this.findSharedUser(id);
+    if (!existing) return null;
+    const next = { ...existing };
+    if (payload.name !== undefined && typeof payload.name === 'string') {
+      const trimmed = payload.name.trim();
+      if (trimmed && trimmed.toLowerCase() !== existing.name.toLowerCase()) {
+        const duplicate = this.findSharedUserByName(trimmed);
+        if (duplicate && duplicate.id !== existing.id) {
+          return null;
+        }
+        next.name = trimmed;
+        next.id = payload.id || trimmed;
+      }
+    }
+    if (payload.salt !== undefined) {
+      next.salt = typeof payload.salt === 'string' ? payload.salt : '';
+    }
+    if (payload.hash !== undefined) {
+      next.hash = typeof payload.hash === 'string' ? payload.hash : '';
+    }
+
+    this.state.settings.sharedUsers = (this.state.settings.sharedUsers || []).map((user) =>
+      user.id === existing.id ? next : user
+    );
+    this.save();
+    return next;
+  }
+
+  deleteSharedUser(id) {
+    const before = this.state.settings.sharedUsers || [];
+    const filtered = before.filter((user) => user.id !== id);
+    if (filtered.length === before.length) return false;
+    this.state.settings.sharedUsers = filtered;
+    this.save();
+    return true;
+  }
+
   deleteOwner(name) {
     const target = typeof name === 'string' ? name.trim() : '';
 
@@ -1023,7 +1125,18 @@ class Store {
       bankModeEnabled: Boolean(settingsPayload.bankModeEnabled),
       lockEnabled: Boolean(settingsPayload.lockEnabled),
       lockSalt: typeof settingsPayload.lockSalt === 'string' ? settingsPayload.lockSalt : '',
-      lockHash: typeof settingsPayload.lockHash === 'string' ? settingsPayload.lockHash : ''
+      lockHash: typeof settingsPayload.lockHash === 'string' ? settingsPayload.lockHash : '',
+      sharedUsers: Array.isArray(settingsPayload.sharedUsers)
+        ? settingsPayload.sharedUsers
+            .filter((user) => user && typeof user.name === 'string')
+            .map((user) => ({
+              id: user.id || String(user.name),
+              name: user.name.trim(),
+              salt: typeof user.salt === 'string' ? user.salt : '',
+              hash: typeof user.hash === 'string' ? user.hash : ''
+            }))
+            .filter((user) => user.name)
+        : []
     };
 
     const accountSet = new Set(settings.bankAccounts);
